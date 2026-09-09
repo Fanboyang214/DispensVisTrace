@@ -1,1 +1,32 @@
-<Solution />
+<Solution>
+  <Folder Name="/解决方案项/">
+    <File Path="../visiontrace/CONTEXT.md" />
+    <File Path="../visiontrace/production-line.sample.json" />
+    <File Path="../visiontrace/点胶机项目-架构设计方案.md" />
+  </Folder>
+  <Folder Name="/解决方案项/docs/">
+    <File Path="../visiontrace/docs/adr/0001-vision-as-pseudo-device.md" />
+    <File Path="../visiontrace/docs/adr/0002-dual-camera-architecture.md" />
+    <File Path="../visiontrace/docs/adr/0003-dual-write-persistence.md" />
+    <File Path="../visiontrace/docs/adr/0004-motion-trajectory-buffer-download.md" />
+    <File Path="../visiontrace/docs/adr/0005-dead-letter-priority-queue.md" />
+    <File Path="../visiontrace/docs/adr/0006-industrialdaq-code-fork.md" />
+    <File Path="../visiontrace/docs/adr/0007-camera-trigger-mechanism.md" />
+    <File Path="../visiontrace/docs/adr/0008-inspection-camera-positioning.md" />
+    <File Path="../visiontrace/docs/adr/0009-camera-acquisition-service.md" />
+    <File Path="../visiontrace/docs/adr/README.md" />
+  </Folder>
+  <Project Path="Acquisition/Acquisition.csproj" Id="38c2803a-02b2-408f-abcd-8f0cd8e11a8e" />
+  <Project Path="Alarm/Alarm.csproj" Id="7cd84fd4-f2c9-47d8-8d28-9412d6b8f294" />
+  <Project Path="App/App.csproj" Id="96740c1d-0d8b-4937-98e7-d081082be807" />
+  <Project Path="Bridge/Bridge.csproj" Id="fa91a7be-3925-4761-ad57-2a2c04612549" />
+  <Project Path="Calibration/Calibration.csproj" Id="5828298d-7daf-4d7e-aafc-9dab0a9c0c38" />
+  <Project Path="Core/Core.csproj" Id="1e42444b-21af-451e-bfb7-93f4ef58d584" />
+  <Project Path="Motion/Motion.csproj" Id="60790b83-4161-4f75-b82d-ed48d3f1e333" />
+  <Project Path="Permission/Permission.csproj" Id="adb880fe-4430-4b14-83ba-59a3f16cc978" />
+  <Project Path="Persistence/Persistence.csproj" Id="50c9f910-bf02-4e6e-a635-47756084005d" />
+  <Project Path="Plugins/Plugins.csproj" Id="199bec90-c154-4542-b124-120d115e1ad9" />
+  <Project Path="Vision.Halcon/Vision.Halcon.csproj" Id="04d42c6e-cbac-476b-b43a-55a0ff09c2fd" />
+  <Project Path="Vision.MV/Vision.MV.csproj" Id="5fe6d11a-fa00-4347-a8c5-7f0e21465baf" />
+  <Project Path="Vision.OpenCV/Vision.OpenCV.csproj" Id="36c19835-bfd6-4ad1-b31f-26296f94f7c7" />
+</Solution>

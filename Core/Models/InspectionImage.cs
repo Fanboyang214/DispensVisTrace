@@ -18,6 +18,16 @@ namespace Core.Models
 
         /// <summary>相机内存流的原始图像字节；使用文件路径模式时为 null。</summary>
         public byte[]? RawData { get; init; }
+        /// <summary>
+        /// 原始图像宽
+        /// </summary>
+        public int ImageWidth { get; init; }
+        /// <summary>
+        /// 原始图像高
+        /// </summary>
+        public int ImageHeight { get; init; }
+
+        
 
         /// <summary>图像采集或加载时的时间戳。</summary>
         public DateTime CaptureTime { get; init; } = DateTime.Now;

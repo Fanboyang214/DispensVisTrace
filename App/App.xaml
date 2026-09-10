@@ -1,9 +1,10 @@
-﻿<Application x:Class="App.App"
+<prism:PrismApplication x:Class="App.DispensVisTraceApp"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:App"
-             StartupUri="MainWindow.xaml">
-    <Application.Resources>
+             xmlns:prism="http://prismlibrary.com/"
+            >
+    <prism:PrismApplication.Resources>
          
-    </Application.Resources>
-</Application>
+    </prism:PrismApplication.Resources>
+</prism:PrismApplication>

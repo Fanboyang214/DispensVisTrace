@@ -12,10 +12,14 @@ namespace App.Infrastructure
     public class VisionAlgorithmFactory : IVisionAlgorithmFactory
     {
         private readonly IContainerProvider _container;
+        
+        
 
         public VisionAlgorithmFactory(IContainerProvider container)
         {
             _container = container;
+           
+            
         }
 
         public IReadOnlyList<string> AvailableEngines => ["Halcon", "OpenCV"];
@@ -23,6 +27,7 @@ namespace App.Infrastructure
         {
             try
             {
+
                 return _container.Resolve<IVisionAlgorithm>(engineName);
             }
             catch (Exception ex)

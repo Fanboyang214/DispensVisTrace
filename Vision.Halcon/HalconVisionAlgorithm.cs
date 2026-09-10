@@ -26,27 +26,48 @@ namespace Vision.Halcon
 
         public bool IsInitiated { get; private set; }
 
+        private CancellationTokenSource _ctsLocateInit;
+        
+        private CancellationTokenSource _ctsInspectInit;
+
+
+
+        public HalconLocateEngine LocateEngine { get; set; }
+        public HalconInspectEngine InspectEngine { get; set; }
+
+        
+
         private HObject _templateModel;
 
 
 
         private bool _disposed;
 
-        public Task DetectLocateAsync(InspectionImage image, CancellationToken ct)
+        public async Task DetectLocateAsync(InspectionImage image, CancellationToken ct) 
         {
-            throw new NotImplementedException();
+            await Task.Run(async() => await LocateEngine.LocateAsync(image),ct);
         }
 
-        public Task DetectDefectAsync(InspectionImage image, CancellationToken ct)
+        public async Task DetectInspectAsync(InspectionImage image, CancellationToken ct)
         {
-            throw new NotImplementedException();
+            await Task.Run(() =>  LocateEngine.LocateAsync(image), ct);
         }
 
-       
+
 
         public Task InitializeAsync(AlgorithmConfig config, CancellationToken ct)
         {
-            throw new NotImplementedException();
+            return Task.Run(() =>
+            {
+                
+                bool isInitLocate = LocateEngine.Initialize(config.Locate);
+                bool isInitInspect = InspectEngine.Initialize(config.Inspect);
+                if (isInitLocate && isInitInspect)
+                    IsInitiated = true;
+                else
+                    IsInitiated = false;
+                return Task.CompletedTask;
+            },ct);
         }
         
         public void Dispose()

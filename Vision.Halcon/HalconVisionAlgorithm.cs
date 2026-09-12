@@ -1,10 +1,9 @@
 ﻿using Core.Models;
 using Core.Vision;
 using HalconDotNet;
+using Prism.Ioc;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Vision.Halcon
@@ -16,10 +15,11 @@ namespace Vision.Halcon
     /// </summary>
     public class HalconVisionAlgorithm : IVisionAlgorithm
     {
-        
-        public HalconVisionAlgorithm()
+        private readonly IContainerProvider _containerProvider;
+
+        public HalconVisionAlgorithm(IContainerProvider containerProvider)
         {
-            
+            _containerProvider = containerProvider;
         }
 
         public string AlgorithmName => "Halcon";
@@ -27,54 +27,51 @@ namespace Vision.Halcon
         public bool IsInitiated { get; private set; }
 
         private CancellationTokenSource _ctsLocateInit;
-        
+
         private CancellationTokenSource _ctsInspectInit;
 
+        public HalconLocateEngine LocateEngine { get; private set; }
 
-
-        public HalconLocateEngine LocateEngine { get; set; }
-        public HalconInspectEngine InspectEngine { get; set; }
-
-        
+        public HalconInspectEngine InspectEngine { get; private set; }
 
         private HObject _templateModel;
 
-
-
         private bool _disposed;
 
-        public async Task DetectLocateAsync(InspectionImage image, CancellationToken ct) 
+        public async Task DetectLocateAsync(InspectionImage image, CancellationToken ct)
         {
-            await Task.Run(async() => await LocateEngine.LocateAsync(image),ct);
+            await Task.Run(async () => await LocateEngine.LocateAsync(image), ct);
         }
 
         public async Task DetectInspectAsync(InspectionImage image, CancellationToken ct)
         {
-            await Task.Run(() =>  LocateEngine.LocateAsync(image), ct);
+            await Task.Run(() => InspectEngine.Inspect(image), ct);
         }
-
-
 
         public Task InitializeAsync(AlgorithmConfig config, CancellationToken ct)
         {
             return Task.Run(() =>
             {
-                
+                LocateEngine = new HalconLocateEngine(_containerProvider);
+                InspectEngine = new HalconInspectEngine(_containerProvider);
+
                 bool isInitLocate = LocateEngine.Initialize(config.Locate);
                 bool isInitInspect = InspectEngine.Initialize(config.Inspect);
                 if (isInitLocate && isInitInspect)
                     IsInitiated = true;
                 else
                     IsInitiated = false;
-                return Task.CompletedTask;
-            },ct);
-        }
-        
-        public void Dispose()
-        {
-            _disposed = true;
+            }, ct);
         }
 
-       
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            LocateEngine?.Dispose();
+            InspectEngine?.Dispose();
+            _templateModel?.Dispose();
+        }
     }
 }

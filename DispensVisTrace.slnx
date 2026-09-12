@@ -1,10 +1,10 @@
 <Solution>
-  <Folder Name="/解决方案项/">
+  <Folder Name="/docs/">
     <File Path="../visiontrace/CONTEXT.md" />
     <File Path="../visiontrace/production-line.sample.json" />
     <File Path="../visiontrace/点胶机项目-架构设计方案.md" />
   </Folder>
-  <Folder Name="/解决方案项/docs/">
+  <Folder Name="/docs/adr/">
     <File Path="../visiontrace/docs/adr/0001-vision-as-pseudo-device.md" />
     <File Path="../visiontrace/docs/adr/0002-dual-camera-architecture.md" />
     <File Path="../visiontrace/docs/adr/0003-dual-write-persistence.md" />
@@ -14,6 +14,8 @@
     <File Path="../visiontrace/docs/adr/0007-camera-trigger-mechanism.md" />
     <File Path="../visiontrace/docs/adr/0008-inspection-camera-positioning.md" />
     <File Path="../visiontrace/docs/adr/0009-camera-acquisition-service.md" />
+    <File Path="../visiontrace/docs/adr/0010-safe-installation-collision-prevention.md" />
+    <File Path="../visiontrace/docs/adr/0011-dual-station-pipeline.md" />
     <File Path="../visiontrace/docs/adr/README.md" />
   </Folder>
   <Project Path="Acquisition/Acquisition.csproj" Id="38c2803a-02b2-408f-abcd-8f0cd8e11a8e" />

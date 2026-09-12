@@ -1,16 +1,21 @@
-﻿using Core.Logging;
+using Core.Logging;
 using Core.Models;
 using Core.Vision;
 using HalconDotNet;
+using netDxf;
+using netDxf.Entities;
 using Prism.Ioc;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.Drawing;
 using System.Linq;
-using System.Reflection.Metadata;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace Vision.Halcon
 {
@@ -19,18 +24,162 @@ namespace Vision.Halcon
         private  LocateConfig? _config;
         private ILogService _logService;
 
-        private bool _disposed;
+        private bool _disposed; 
+        
+        private HTuple _modelId;
+
+        private double _minBrightness;
+        private double _maxBrightness;
+        private double _minContrast;
+        private double _maxContrast;
+        private double _scoreThreshold;
+
+        private string _templateFilePath;
+
+
+        private int _roiRow;
+        private int _roiCol;
+        private int _roiWidth;
+        private int _roiHeight;
+
+        private double? _minScore;
+        private double? _maxOverlap;
+        private double? _minScaleRange;
+        private double? _maxScaleRange;
+        private double? _minAngleRange;
+        private double? _maxAngleRange;
+        private int? _numLevels;
+        private double _minContrastT;
+        private double _maxContrastT;
+        private string _metric;
+        private bool _subpixelAccuracy;
+
+
+        private string _cadPath;
+        private string _layerName;
+        private bool _reverseYAxis;
+        private bool _transformByPose;
+        private double _pathSimplificationEpsilon;
+        private double _minSegmentLengthMm;
+
+        /// <summary>CAD 设计路径缓存（已 Y 轴反转 + 简化，与产品位姿无关），null 表示尚未加载。</summary>
+        private List<PointF>? _designPath;
+
+
+
 
         public HalconLocateEngine(IContainerProvider containerProvider)
         {
             _logService = containerProvider.Resolve<ILogService>();
+#if DEBUG
+            VerifyCadPathMath();
+#endif
         }
         public bool Initialize(LocateConfig config)
         {
             if (_disposed) return false;
-            if (_config == null) return false;
+            if (config == null) return false;
 
-                _config = config;
+            _config = config;
+
+            object minContrastObj = null;
+            object maxContrastObj = null;
+            object minBrightnessObj = null;
+            object maxBrightnessObj = null;
+            object scoreThresholdObj = null;
+            bool hasMinContrast = _config?.ImageQualityGate.TryGetValue("minContrast", out minContrastObj) ?? false;
+            bool hasMaxContrast = _config?.ImageQualityGate.TryGetValue("maxContrast", out maxContrastObj) ?? false;
+            bool hasMinBrightness = _config?.ImageQualityGate.TryGetValue("minBrightness", out minBrightnessObj) ?? false;
+            bool hasMaxBirghtness = _config?.ImageQualityGate.TryGetValue("maxBrightness", out maxBrightnessObj) ?? false;
+            bool hasScoreThreshold = _config?.ImageQualityGate.TryGetValue("scoreThreshold", out scoreThresholdObj) ?? false;
+
+            _minBrightness = hasMinBrightness ? Convert.ToDouble(minBrightnessObj) : 40.0;
+            _maxBrightness = hasMaxBirghtness ? Convert.ToDouble(maxBrightnessObj) : 220.0;
+            _minContrast = hasMinContrast ? Convert.ToDouble(minContrastObj) : 30.0;
+            _maxContrast = hasMaxContrast ? Convert.ToDouble(maxContrastObj) : 200.0;
+            _scoreThreshold = hasScoreThreshold ? Convert.ToDouble(scoreThresholdObj) : 0.6;
+
+            object templateFilePath = null;
+            
+
+            bool hasTemplatePath = _config?.TemplateMatching.TryGetValue("templateFilePath", out templateFilePath) ?? false;
+
+            _templateFilePath = hasTemplatePath ? Convert.ToString(templateFilePath) : string.Empty;
+
+
+            object roiRowObj = null;
+            object roiColObj = null;
+            object roiWidthObj = null;
+            object roiHeightObj = null;
+          
+            object minScoreObj = null;
+            object maxOverlapObj = null;
+            object minscaleRangeObj = null;
+            object maxscaleRangeObj = null;
+            object minAngleRangeObj = null;
+            object maxAngleRangeObj = null;
+            object numLevelsObj = null;
+            object minContrastTObj = null;
+            object maxContrastTObj = null;
+            object metricObj = null;
+            object subpixelAccuracyObj = null;
+
+            bool hasRoiRow = _config?.Roi.TryGetValue("roiRow", out roiRowObj) ?? false;
+            bool hasRoiCol = _config?.Roi.TryGetValue("roiCol", out roiColObj) ?? false;
+            bool hasRoiWidth = _config?.Roi.TryGetValue("roiWidth", out roiWidthObj) ?? false;
+            bool hasRoiHeight = _config?.Roi.TryGetValue("roiHeight", out roiHeightObj) ?? false;
+            bool hasMinScore = _config?.TemplateMatching.TryGetValue("minScore", out minScoreObj) ?? false;
+            bool hasMaxOverlap = _config?.TemplateMatching.TryGetValue("maxOverlap", out maxOverlapObj) ?? false;
+            bool hasMinScaleRange = _config?.TemplateMatching.TryGetValue("minScaleRange", out minscaleRangeObj) ?? false;
+            bool hasMaxScaleRange = _config?.TemplateMatching.TryGetValue("maxScaleRange", out maxscaleRangeObj) ?? false;
+            bool hasMinAngleRange = _config?.TemplateMatching.TryGetValue("minAngleRange", out minAngleRangeObj) ?? false;
+            bool hasMaxAngleRange = _config?.TemplateMatching.TryGetValue("maxAngleRange", out maxAngleRangeObj) ?? false;
+            bool hasNumLevels = _config?.TemplateMatching.TryGetValue("numLevels", out numLevelsObj) ?? false;
+            bool hasMinContrastT = _config?.TemplateMatching.TryGetValue("minContrast", out minContrastTObj) ?? false;
+            bool hasMaxContrastT = _config?.TemplateMatching.TryGetValue("maxContrast", out maxContrastTObj) ?? false;
+            bool hasMetric = _config?.TemplateMatching.TryGetValue("metric", out metricObj) ?? false;
+            bool hasSubpixelAccuracy = _config?.TemplateMatching.TryGetValue("subpixelAccuracy", out subpixelAccuracyObj) ?? false;
+
+            _roiRow = hasRoiRow? Convert.ToInt32(roiRowObj):0;  
+            _roiCol = hasRoiCol? Convert.ToInt32(roiColObj):0;
+            _roiWidth = hasRoiWidth? Convert.ToInt32(roiWidthObj):0;
+            _roiHeight = hasRoiHeight? Convert.ToInt32(roiHeightObj):0;
+            _minScore = hasMinScore ? Convert.ToDouble(minScoreObj) : 0.5;
+            _maxOverlap = hasMaxOverlap ? Convert.ToDouble(maxOverlapObj) : 0.5;
+            _minScaleRange = hasMinScaleRange ? Convert.ToDouble(minscaleRangeObj) : 0.8;
+            _maxScaleRange = hasMaxScaleRange ? Convert.ToDouble(maxscaleRangeObj) : 1.2;
+            _minAngleRange = hasMinAngleRange ? Convert.ToDouble(minAngleRangeObj) : -0.1;
+            _maxAngleRange = hasMaxAngleRange ? Convert.ToDouble(maxAngleRangeObj) : 0.1;
+            _numLevels = hasNumLevels ? Convert.ToInt32(numLevelsObj) : 5;
+            _minContrastT = hasMinContrastT ? Convert.ToDouble(minContrastTObj) : 30.0;
+            _maxContrastT = hasMaxContrastT ? Convert.ToDouble(maxContrastTObj) : 70.0;
+            _metric = hasMetric ? Convert.ToString(metricObj) : "use_polarity";
+            _subpixelAccuracy = hasSubpixelAccuracy ? Convert.ToBoolean(subpixelAccuracyObj) : true;
+
+            object cadPathObj =null;
+            object layerName = null;
+            object reverseYAxisObj = null;
+            object transformByPoseObj = null;
+            object simplificationEpsilonObj = null;
+            object minSegmentLengthObj = null;
+
+            bool hasCadPath = _config?.CadImport.TryGetValue("cadPath", out cadPathObj) ?? false;
+            bool hasLayerName = _config?.CadImport.TryGetValue("layerName", out layerName) ?? false;
+            bool hasReverseYAxis = _config?.CadImport.TryGetValue("reverseYAxis", out reverseYAxisObj) ?? false;
+            bool hasTransformByPose = _config?.CadImport.TryGetValue("transformByPose", out transformByPoseObj) ?? false;
+            bool hasSimplificationEpsilon = _config?.CadImport.TryGetValue("pathSimplificationEpsilon", out simplificationEpsilonObj) ?? false;
+            bool hasMinSegmentLength = _config?.CadImport.TryGetValue("minSegmentLengthMm", out minSegmentLengthObj) ?? false;
+
+            _cadPath = hasCadPath ? Convert.ToString(cadPathObj) : string.Empty;
+            _layerName = hasLayerName ? Convert.ToString(layerName) : string.Empty;
+            _reverseYAxis = hasReverseYAxis ? Convert.ToBoolean(reverseYAxisObj) : true;
+            _transformByPose = hasTransformByPose ? Convert.ToBoolean(transformByPoseObj) : true;
+            _pathSimplificationEpsilon = hasSimplificationEpsilon ? Convert.ToDouble(simplificationEpsilonObj) : 0.05;
+            _minSegmentLengthMm = hasMinSegmentLength ? Convert.ToDouble(minSegmentLengthObj) : 0.1;
+
+            // 配置可能已经换了 CAD 文件/图层/简化阈值，缓存的设计路径作废
+            _designPath = null;
+
             return true;   
         }
 
@@ -54,33 +203,23 @@ namespace Vision.Halcon
 
                 var score = mean * 0.5 + dev * 0.5;
 
-                object minContrastObj = null;
-                object maxContrastObj = null;
-                object minBrightnessObj = null;
-                object maxBrightnessObj = null;
-                object scoreThresholdObj = null;
-                bool hasMinContrast = _config?.ImageQualityGate.TryGetValue("minContrast", out minContrastObj) ?? false;
-                bool hasMaxContrast = _config?.ImageQualityGate.TryGetValue("maxContrast", out maxContrastObj) ?? false;
-                bool hasMinBrightness = _config?.ImageQualityGate.TryGetValue("minBrightness", out minBrightnessObj) ?? false;
-                bool hasMaxBirghtness = _config?.ImageQualityGate.TryGetValue("maxBrightness", out maxBrightnessObj) ?? false;
-                bool hasScoreThreshold = _config?.ImageQualityGate.TryGetValue("scoreThreshold", out scoreThresholdObj) ?? false;
-
-                double minBrightness = hasMinBrightness ? Convert.ToDouble(minBrightnessObj) : 40.0;
-                double maxBrightness = hasMinBrightness ? Convert.ToDouble(maxBrightnessObj) : 220.0;
-                double minContrast = hasMinBrightness ? Convert.ToDouble(minContrastObj) : 30.0;
-                double maxContrast = hasMinBrightness ? Convert.ToDouble(maxContrastObj) : 200.0;
-                double scoreThreshold = hasMinBrightness ? Convert.ToDouble(scoreThresholdObj) : 0.6;
+                
 
 
                 return new ImageQualityResult
                 {
-                    IsPass = (minBrightness <= mean && mean <= maxBrightness) && (minContrast <= dev && dev <= maxContrast) ? (score >= scoreThreshold ? true : false) : false,
+                    IsPass = (_minBrightness <= mean && mean <= _maxBrightness) && (_minContrast <= dev && dev <= _maxContrast) ? (score >= _scoreThreshold ? true : false) : false,
                     Score = score
                 };
             
             }catch(Exception ex)
             {
                 _logService.Log(LogLevel.Warn,$"定位图像质量检测异常：{ex.Message}");
+                return new ImageQualityResult
+                {
+                    IsPass = false,
+                    Score = 0.0
+                };
             }
             finally
             {
@@ -93,16 +232,365 @@ namespace Vision.Halcon
                
         }
 
-        public ProductPose? FindProductPose(InspectionImage frame)
+        public ProductPose? FindProductPose(InspectionImage image)
         {
+            GCHandle handle = GCHandle.Alloc(image.RawData, GCHandleType.Pinned);
 
-        } 
+            IntPtr ptr = handle.AddrOfPinnedObject();
+
+            HImage hImage = new HImage("byte", image.ImageWidth, image.ImageHeight, ptr);
+
+            HTuple row = null, column = null, angle = null, score = null;
 
 
-        public Task LocateAsync(InspectionImage image)
-        {
+            try
+            {
+                if(_modelId == null || _modelId.Length == 0)
+                {
+                    if (_templateFilePath == string.Empty)
+                {
+                    _logService?.Log(LogLevel.Warn, "定位图像加载模板失败，未配置模板路径");
+                    throw new Exception("定位图像加载模板失败，未配置模板路径");
+                }
+                
 
+                bool isLoad = LoadShapeModle(_templateFilePath, out _modelId);
+                if (!isLoad)
+                    return null;
+                }
+
+               
+                HOperatorSet.FindShapeModel(
+                    hImage,
+                    _modelId,
+                    _minAngleRange * Math.PI / 180,
+                    (_maxAngleRange - _minAngleRange) * Math.PI / 180,
+                    _minScore,        // minScore
+                    0,          // numMatches=0 找出所有匹配；只取1个工件就填1
+                    _maxOverlap,        // maxOverlap
+                    _subpixelAccuracy ? "least_squares" : "none", // subpixelAccuracy=true
+                    _numLevels,
+                    0.8,        // greediness 默认0.8，越小搜索越慢越精准
+                    out row,
+                    out column,
+                    out angle,
+                    out score
+                );
+
+                return new ProductPose
+                {
+                    CenterRow = row.D,
+                    CenterCol = column.D,
+
+                    AngleRad = angle.D,
+                    Score = score.D
+                };
+
+            } catch (Exception ex)
+            {
+                _logService?.Log(LogLevel.Warn, $"定位图像匹配异常：{ex.Message}");
+                return null;
+
+            }
+            finally
+            {
+                handle.Free();
+                row?.Dispose();
+                column?.Dispose();
+                angle?.Dispose();
+                score?.Dispose();
+                hImage?.Dispose();
+
+            } 
         }
+
+        private bool LoadShapeModle(string v, out HTuple modelId)
+        {
+            HObject hFrame = null;
+            HObject roi = null;
+            try
+            {
+
+                HOperatorSet.ReadImage(out  hFrame, v);
+                HOperatorSet.GenRectangle2(out roi, _roiRow, _roiCol,0, _roiHeight, _roiWidth);
+
+                HOperatorSet.ReduceDomain(hFrame, roi, out HObject reducedImage);
+                
+                HOperatorSet.CreateShapeModel(reducedImage, _numLevels, _minAngleRange*Math.PI/180,( _maxAngleRange-_minAngleRange)*Math.PI/180, "auto", "auto", _metric,_maxContrastT,_minContrastT, out modelId);
+
+                return true;
+            }
+            catch (HOperatorException ex)
+            {
+                _logService.Log(LogLevel.Warn, $"定位图像模板加载失败:{ex.Message}");
+                modelId = null;
+                return false;
+                throw ex;
+            }
+            finally
+            {
+                hFrame?.Dispose();
+                roi?.Dispose();
+            }
+            
+        }
+
+
+        // ========== ③ 加载 CAD 文件 + 位姿变换 ==========
+        /// <summary>
+        /// 取设计路径并按产品位姿变换成本次检测的涂胶路径。
+        /// <para>
+        /// DXF 解析、Y 轴反转、简化、去碎线段都与产品位姿无关，只在首次调用时做一次并缓存，
+        /// 之后每颗产品只做一次刚体变换，不再重新解析 CAD。
+        /// </para>
+        /// </summary>
+        public GluePath LoadCadGluePath(ProductPose pose)
+        {
+            // 懒加载：CAD 文件有问题时在首次调用就暴露，而且加载失败不会把空结果写进缓存
+            _designPath ??= LoadDesignPath();
+
+            // 必须另开一个列表：GluePath 会直接持有它，调用方改了不能污染缓存
+            var points = _transformByPose
+                ? _designPath.Select(p => TransformByPose(p, pose)).ToList()
+                : new List<PointF>(_designPath);
+
+            return new GluePath(points, pose.Score);
+        }
+
+        /// <summary>解析胶路图层并简化，得到与产品位姿无关的设计路径（CAD 坐标系，mm）。</summary>
+        private List<PointF> LoadDesignPath()
+        {
+            if (string.IsNullOrWhiteSpace(_cadPath))
+            {
+                _logService.Log(LogLevel.Warn, "未配置 CAD 胶路文件路径（cadImport.cadPath）");
+                throw new InvalidOperationException("未配置 CAD 胶路文件路径（cadImport.cadPath）");
+
+            }
+
+            // 使用 netDxf 解析 DXF 文件
+            var dxf = DxfDocument.Load(_cadPath);
+
+            var cadPoints = new List<PointF>();
+
+            // 遍历胶路图层中的实体：Line 取两端点，Arc/Spline 按密度离散，Polyline 直接取顶点
+            foreach (var entity in dxf.Entities.All.Where(e => e.Layer.Name == _layerName))
+            {
+                switch (entity)
+                {
+                    case Line line:
+                        cadPoints.Add(ToPoint(line.StartPoint));
+                        cadPoints.Add(ToPoint(line.EndPoint));
+                        break;
+                    case Arc arc:
+                        // DXF 圆弧按逆时针从 StartAngle 扫到 EndAngle，跨 0° 时 EndAngle 会小于 StartAngle
+                        double sweepDeg = arc.EndAngle - arc.StartAngle;
+                        if (sweepDeg <= 0) sweepDeg += 360;
+
+                        cadPoints.AddRange(arc.PolygonalVertexes(
+                            SampleCount(arc.Radius * sweepDeg * Math.PI / 180)).Select(v => ToPoint(v, arc.Center)));
+                        break;
+                    case Polyline2D polyline:
+                        // LWPOLYLINE 的顶点本身就是路径点，无需再离散
+                        cadPoints.AddRange(polyline.Vertexes.Select(v => ToPoint(v.Position)));
+                        break;
+                    case Spline spline:
+                        // 控制多边形长度是样条长度的上界，用它估密度只会略密，随后由 SimplifyPath 收敛
+                        cadPoints.AddRange(spline.PolygonalVertexes(
+                            SampleCount(LengthOf(spline.ControlPoints.Select(ToPoint)))).Select(ToPoint));
+                        break;
+                }
+            }
+
+            if (cadPoints.Count == 0)
+            {
+                _logService.Log(LogLevel.Warn, $"CAD 胶路为空：{_cadPath} 的图层 {_layerName} 未匹配到可用实体");
+                return cadPoints;
+            }
+
+            // CAD 坐标系 Y 轴反转（CAD Y↑ vs 图像 Y↓）
+            if (_reverseYAxis)
+                cadPoints = cadPoints.Select(p => new PointF(p.X, -p.Y)).ToList();
+
+            // 简化和去碎线段都放在位姿变换之前：epsilon 与 minSegmentLengthMm 本来就是 CAD 的 mm 口径，
+            // 而位姿变换只有旋转 + 平移（等距变换），变换前后做结果一致，所以能连结果一起缓存
+            cadPoints = SimplifyPath(cadPoints, _pathSimplificationEpsilon);
+            cadPoints = FilterShortSegments(cadPoints, _minSegmentLengthMm);
+
+            return cadPoints;
+        }
+
+
+        /// <summary>曲线离散密度（点/mm）。</summary>
+        private const int SamplesPerMm = 5;
+
+        /// <summary>按曲线长度估算离散点数，限制在 [8, 2048] 之间。</summary>
+        private static int SampleCount(double lengthMm) =>
+            Math.Clamp((int)Math.Ceiling(lengthMm * SamplesPerMm), 8, 2048);
+
+        private static PointF ToPoint(Vector2 v) => new PointF((float)v.X, (float)v.Y);
+
+        private static PointF ToPoint(Vector3 v) => new PointF((float)v.X, (float)v.Y);
+
+        /// <summary>
+        /// 把以 <paramref name="offset"/> 为原点的局部坐标点换算到世界坐标。
+        /// netDxf 的 <c>Arc.PolygonalVertexes</c> 返回的是圆心坐标系下的点，必须加回圆心。
+        /// </summary>
+        private static PointF ToPoint(Vector2 v, Vector3 offset) =>
+            new PointF((float)(v.X + offset.X), (float)(v.Y + offset.Y));
+
+        /// <summary>折线总长（mm）。</summary>
+        private static double LengthOf(IEnumerable<PointF> points)
+        {
+            var list = points as IList<PointF> ?? points.ToList();
+
+            double length = 0;
+            for (int i = 1; i < list.Count; i++)
+            {
+                float dx = list[i].X - list[i - 1].X;
+                float dy = list[i].Y - list[i - 1].Y;
+                length += Math.Sqrt(dx * dx + dy * dy);
+            }
+            return length;
+        }
+
+        /// <summary>把 CAD 路径点按产品位姿旋转并平移到图像坐标。</summary>
+        // ponytail: 只做旋转 + 平移。ProductPose.Scale 目前无人赋值（默认 0），
+        // 等模板匹配开始输出缩放后，这里要按 Scale 缩放后再平移。
+        private static PointF TransformByPose(PointF point, ProductPose pose)
+        {
+            double cos = Math.Cos(pose.AngleRad);
+            double sin = Math.Sin(pose.AngleRad);
+
+            return new PointF(
+                (float)(point.X * cos - point.Y * sin) + (float)pose.CenterCol,
+                (float)(point.X * sin + point.Y * cos) + (float)pose.CenterRow);
+        }
+
+        /// <summary>Douglas-Peucker 路径简化：删除离首尾连线不足 epsilonMm 的冗余点，首尾点必留。</summary>
+        private static List<PointF> SimplifyPath(List<PointF> points, double epsilonMm)
+        {
+            if (points.Count < 3 || epsilonMm <= 0)
+                return points;
+
+            float epsilon = (float)epsilonMm;
+            var keep = new bool[points.Count];
+            keep[0] = true;
+            keep[^1] = true;
+
+            // 用显式栈代替递归：点数多时递归深度会退化成 O(n)
+            var pending = new Stack<(int First, int Last)>();
+            pending.Push((0, points.Count - 1));
+
+            while (pending.Count > 0)
+            {
+                var (first, last) = pending.Pop();
+
+                float maxDistance = -1f;
+                int farthest = -1;
+                for (int i = first + 1; i < last; i++)
+                {
+                    float distance = DistanceToSegment(points[i], points[first], points[last]);
+                    if (distance > maxDistance)
+                    {
+                        maxDistance = distance;
+                        farthest = i;
+                    }
+                }
+
+                if (farthest < 0 || maxDistance <= epsilon)
+                    continue;
+
+                keep[farthest] = true;
+                pending.Push((first, farthest));
+                pending.Push((farthest, last));
+            }
+
+            var simplified = new List<PointF>(points.Count);
+            for (int i = 0; i < points.Count; i++)
+            {
+                if (keep[i]) simplified.Add(points[i]);
+            }
+            return simplified;
+        }
+
+        /// <summary>点到线段的距离（mm）；首尾重合时退化为点距。</summary>
+        private static float DistanceToSegment(PointF point, PointF start, PointF end)
+        {
+            float dx = end.X - start.X;
+            float dy = end.Y - start.Y;
+            float lengthSquared = dx * dx + dy * dy;
+
+            if (lengthSquared < float.Epsilon)
+            {
+                float px = point.X - start.X;
+                float py = point.Y - start.Y;
+                return MathF.Sqrt(px * px + py * py);
+            }
+
+            float t = Math.Clamp(((point.X - start.X) * dx + (point.Y - start.Y) * dy) / lengthSquared, 0f, 1f);
+            float projX = start.X + t * dx;
+            float projY = start.Y + t * dy;
+            return MathF.Sqrt((point.X - projX) * (point.X - projX) + (point.Y - projY) * (point.Y - projY));
+        }
+
+        /// <summary>删除与前一保留点距离不足 minSegmentMm 的点（CAD 里的碎线段）。</summary>
+        private static List<PointF> FilterShortSegments(List<PointF> points, double minSegmentMm)
+        {
+            if (points.Count < 2 || minSegmentMm <= 0)
+                return points;
+
+            float minSquared = (float)(minSegmentMm * minSegmentMm);
+            var filtered = new List<PointF>(points.Count) { points[0] };
+
+            for (int i = 1; i < points.Count; i++)
+            {
+                float dx = points[i].X - filtered[^1].X;
+                float dy = points[i].Y - filtered[^1].Y;
+                if (dx * dx + dy * dy >= minSquared)
+                    filtered.Add(points[i]);
+            }
+
+            return filtered;
+        }
+
+
+        /// <summary>定位入口：异步执行图像质量门限与模板匹配。</summary>
+        public Task<ProductPose?> LocateAsync(InspectionImage image) => Task.Run(() => FindProductPose(image));
+
+
+#if DEBUG
+        /// <summary>
+        /// CAD 路径几何算法的自检。几何符号或阈值写反时，调试期第一次构造引擎就会断言失败，
+        /// 而不是等到现场发现胶路跑偏。由构造函数调用。
+        /// </summary>
+        internal static void VerifyCadPathMath()
+        {
+            // 绕原点逆时针旋转 90°，平移到 row=10 / col=20
+            var pose = new ProductPose { AngleRad = Math.PI / 2, CenterRow = 10, CenterCol = 20 };
+            var rotated = TransformByPose(new PointF(3, 0), pose);
+            Debug.Assert(Math.Abs(rotated.X - 20) < 0.001, "TransformByPose 的 X（列）换算错误");
+            Debug.Assert(Math.Abs(rotated.Y - 13) < 0.001, "TransformByPose 的 Y（行）换算错误");
+
+            // 共线点应被简化掉，尖点必须保留
+            var simplified = SimplifyPath(
+                new List<PointF> { new(0, 0), new(1, 0), new(2, 0), new(3, 1), new(4, 1) }, epsilonMm: 0.1);
+            Debug.Assert(simplified.Count == 4, "SimplifyPath 未删除共线点或误删了尖点");
+            Debug.Assert(simplified[2] == new PointF(3, 1), "SimplifyPath 丢失了尖点");
+
+            // 间距不足阈值的点应被过滤
+            var filtered = FilterShortSegments(
+                new List<PointF> { new(0, 0), new(0.05f, 0), new(1, 0) }, minSegmentMm: 0.1);
+            Debug.Assert(filtered.Count == 2, "FilterShortSegments 未过滤碎线段");
+
+            // 钉住 netDxf 的坐标系假设：Arc.PolygonalVertexes 返回的是圆心坐标系下的点，
+            // 必须加回圆心。若哪天 netDxf 改成返回世界坐标，这里会立刻失败。
+            var arc = new Arc(new Vector2(50, 0), 10, 0, 90);
+            var arcStart = ToPoint(arc.PolygonalVertexes(4)[0], arc.Center);
+            Debug.Assert(Math.Abs(arcStart.X - 60) < 0.001 && Math.Abs(arcStart.Y) < 0.001,
+                "圆弧顶点未换算到世界坐标");
+        }
+#endif
+
 
         public void Dispose() => _disposed = true;
     }

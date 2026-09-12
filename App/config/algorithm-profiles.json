@@ -1,475 +1,551 @@
 {
-    "$schema": "DispensVisTrace.AlgorithmProfiles",
-    "version": "1.0.0",
-    "description": "算法参数配置文件 — 按产品型号管理定位与胶线检测的完整参数集",
-    "profiles": [
-        {
-            "productModel": "MODEL-A",
-            "description": "标准矩形产品，单胶路闭环",
-            "enabled": true,
-            "locate": {
-                "camera": "Camera01",
-                "description": "定位阶段 — 全局大视野找产品位姿，加载 CAD 胶路并变换至实际位置",
-                "imageQualityGate": {
-                    "enabled": true,
-                    "minContrast": 30.0,
-                    "maxContrast": 200.0,
-                    "minSaturation": 20.0,
-                    "minBrightness": 40.0,
-                    "maxBrightness": 220.0,
-                    "scoreThreshold": 0.6
-                },
-                "preprocess": {
-                    "medianBlurKernelSize": 5,
-                    "gaussianBlurKernelSize": 5,
-                    "gaussianBlurSigma": 1.2,
-                    "thresholdMethod": "adaptive",
-                    "adaptiveBlockSize": 51,
-                    "adaptiveC": 10,
-                    "morphologyOpenKernel": 3,
-                    "morphologyCloseKernel": 5
-                },
-                "templateMatching": {
-                    "enabled": true,
-                    "templateFilePath": "templates/model-a-locate-template.png",
-                    "templateFormat": "png",
-                    "matchingMethod": "normedCorrelation",
-                    "minScore": 0.75,
-                    "maxOverlap": 0.5,
-                    "scaleRange": {
-                        "min": 0.95,
-                        "max": 1.05
-                    },
-                    "angleRange": {
-                        "min": -5.0,
-                        "max": 5.0
-                    },
-                    "pyramidLevels": 3
-                },
-                "cadImport": {
-                    "enabled": true,
-                    "cadFilePath": "cad/model-a-glue-path.dxf",
-                    "cadFormat": "dxf",
-                    "cadUnit": "mm",
-                    "layerName": "glue-path",
-                    "entityTypes": [ "line", "arc", "circle", "polyline", "spline" ],
-                    "pathSimplificationEpsilon": 0.05,
-                    "minSegmentLengthMm": 0.1,
-                    "reverseYAxis": true,
-                    "transformByPose": true
-                },
-                "output": {
-                    "coordinateSpace": "pixel",
-                    "includeConfidence": true,
-                    "maxOutputPoints": 1000
-                }
-            },
-            "inspect": {
-                "camera": "Camera02",
-                "description": "检测阶段 — 局部高倍率检测胶宽/断胶/偏移/溢胶",
-                "cadReference": {
-                    "enabled": true,
-                    "source": "shared",
-                    "cadFilePath": "cad/model-a-glue-path.dxf",
-                    "layerName": "glue-path",
-                    "unit": "mm"
-                },
-                "imageQualityGate": {
-                    "enabled": true,
-                    "minContrast": 25.0,
-                    "maxContrast": 220.0,
-                    "minSaturation": 15.0,
-                    "minBrightness": 35.0,
-                    "maxBrightness": 230.0,
-                    "scoreThreshold": 0.55
-                },
-                "preprocess": {
-                    "medianBlurKernelSize": 3,
-                    "gaussianBlurKernelSize": 3,
-                    "gaussianBlurSigma": 0.8,
-                    "thresholdMethod": "otsu",
-                    "morphologyOpenKernel": 3,
-                    "morphologyCloseKernel": 3
-                },
-                "inspectionPlan": {
-                    "fovMm": 12.0,
-                    "fovSafetyMarginMm": 0.3,
-                    "singleShotOverlapRatio": 1.2,
-                    "multiShotMaxFrames": 3,
-                    "multiShotPriorityPoints": [ "corner", "joint", "start", "end" ],
-                    "equidistantOverlapRatio": 0.3,
-                    "maxShotsPerPlan": 10
-                },
-                "beadExtraction": {
-                    "roiSearchMarginMm": 1.0,
-                    "extractionMethod": "edgeDetection",
-                    "edgeThreshold": 30.0,
-                    "minBeadWidthPx": 5,
-                    "maxBeadWidthPx": 200,
-                    "edgeFilterSize": 3,
-                    "subpixelAccuracy": true
-                },
-                "glueWidthMeasurement": {
-                    "enabled": true,
-                    "measurementMethod": "normalProfile",
-                    "numSamplingPoints": 50,
-                    "samplingIntervalMm": 0.5,
-                    "profileLengthMm": 3.0,
-                    "subpixelInterpolation": true,
-                    "outlierRemovalEnabled": true,
-                    "outlierSigmaThreshold": 3.0
-                },
-                "continuityDetection": {
-                    "enabled": true,
-                    "detectionMethod": "edgeContinuity",
-                    "maxGapLengthMm": 1.0,
-                    "minBeadSegmentLengthMm": 3.0,
-                    "gapIntensityDropRatio": 0.5,
-                    "mergeGapDistanceMm": 0.5
-                },
-                "offsetDetection": {
-                    "enabled": true,
-                    "detectionMethod": "referenceComparison",
-                    "referenceSource": "designPath",
-                    "maxOffsetMm": 0.3,
-                    "offsetProfileLengthMm": 2.0,
-                    "numOffsetSamples": 30
-                },
-                "overflowDetection": {
-                    "enabled": true,
-                    "detectionMethod": "edgeDistance",
-                    "maxBeadWidthMm": 2.5,
-                    "overflowAreaRatioThreshold": 0.15,
-                    "overflowIntensityThreshold": 50.0
-                },
-                "defectClassification": {
-                    "enabled": true,
-                    "classificationMethod": "thresholdBased",
-                    "defectTypes": [
-                        {
-                            "type": "glueWidthTooNarrow",
-                            "enabled": true,
-                            "severity": "error",
-                            "minValueMm": 0.8,
-                            "maxValueMm": null,
-                            "continuousCheck": false
-                        },
-                        {
-                            "type": "glueWidthTooWide",
-                            "enabled": true,
-                            "severity": "warning",
-                            "minValueMm": null,
-                            "maxValueMm": 2.2,
-                            "continuousCheck": false
-                        },
-                        {
-                            "type": "discontinuity",
-                            "enabled": true,
-                            "severity": "error",
-                            "minValueMm": 0.5,
-                            "maxValueMm": null,
-                            "continuousCheck": true
-                        },
-                        {
-                            "type": "offsetExceeded",
-                            "enabled": true,
-                            "severity": "error",
-                            "minValueMm": 0.3,
-                            "maxValueMm": null,
-                            "continuousCheck": false
-                        },
-                        {
-                            "type": "overflowExceeded",
-                            "enabled": true,
-                            "severity": "warning",
-                            "minValueMm": 2.5,
-                            "maxValueMm": null,
-                            "continuousCheck": false
-                        }
-                    ],
-                    "overallJudgment": {
-                        "method": "worstDefect",
-                        "passWhen": "noError",
-                        "allowWarnings": true
-                    }
-                }
-            },
-            "calibration": {
-                "locateCamera": {
-                    "cameraId": "Camera01",
-                    "method": "affine",
-                    "calibrationFile": "calib/camera01_affine.json",
-                    "pixelPerMmX": 0.05,
-                    "pixelPerMmY": 0.05,
-                    "originOffsetX": 0.0,
-                    "originOffsetY": 0.0,
-                    "rotationDeg": 0.0
-                },
-                "inspectCamera": {
-                    "cameraId": "Camera02",
-                    "method": "affine",
-                    "calibrationFile": "calib/camera02_affine.json",
-                    "pixelPerMmX": 0.02,
-                    "pixelPerMmY": 0.02,
-                    "originOffsetX": 0.0,
-                    "originOffsetY": 0.0,
-                    "rotationDeg": 0.0
-                }
-            },
-            "visualization": {
-                "locateOverlay": {
-                    "showTemplateMatch": true,
-                    "showGluePath": true,
-                    "showRoi": true,
-                    "gluePathColor": [ 0, 255, 0 ],
-                    "roiColor": [ 255, 255, 0 ],
-                    "templateMatchColor": [ 0, 255, 255 ]
-                },
-                "inspectOverlay": {
-                    "showBeadEdge": true,
-                    "showWidthProfile": true,
-                    "showDefectMarkers": true,
-                    "beadEdgeColor": [ 0, 255, 0 ],
-                    "widthProfileColor": [ 255, 255, 0 ],
-                    "defectColor": [ 0, 0, 255 ],
-                    "normalColor": [ 0, 255, 0 ],
-                    "showMeasurementLabels": true
-                }
-            }
+  "$schema": "DispensVisTrace.AlgorithmProfiles",
+  "version": "1.0.0",
+  "description": "算法参数配置文件 — 按产品型号管理定位与胶线检测的完整参数集",
+  "profiles": [
+    {
+      "productModel": "MODEL-A",
+      "description": "标准矩形产品，单胶路闭环",
+      "enabled": true,
+      "locate": {
+        "camera": "Camera01",
+        "description": "定位阶段 — 全局大视野找产品位姿，加载 CAD 胶路并变换至实际位置",
+        "imageQualityGate": {
+          "enabled": true,
+          "minContrast": 30.0,
+          "maxContrast": 200.0,
+          "minSaturation": 20.0,
+          "minBrightness": 40.0,
+          "maxBrightness": 220.0,
+          "scoreThreshold": 0.6
         },
-        {
-            "productModel": "MODEL-B",
-            "description": "异形曲面产品，多段胶路，高精度要求",
-            "enabled": true,
-            "locate": {
-                "camera": "Camera01",
-                "description": "定位阶段 — 全局大视野找产品位姿，加载 CAD 胶路并变换至实际位置",
-                "imageQualityGate": {
-                    "enabled": true,
-                    "minContrast": 35.0,
-                    "maxContrast": 220.0,
-                    "minSaturation": 25.0,
-                    "minBrightness": 45.0,
-                    "maxBrightness": 215.0,
-                    "scoreThreshold": 0.65
-                },
-                "preprocess": {
-                    "medianBlurKernelSize": 5,
-                    "gaussianBlurKernelSize": 5,
-                    "gaussianBlurSigma": 1.5,
-                    "thresholdMethod": "adaptive",
-                    "adaptiveBlockSize": 61,
-                    "adaptiveC": 12,
-                    "morphologyOpenKernel": 3,
-                    "morphologyCloseKernel": 5
-                },
-                "templateMatching": {
-                    "enabled": true,
-                    "templateFilePath": "templates/model-b-locate-template.png",
-                    "templateFormat": "png",
-                    "matchingMethod": "normedCorrelation",
-                    "minScore": 0.7,
-                    "maxOverlap": 0.4,
-                    "scaleRange": {
-                        "min": 0.93,
-                        "max": 1.07
-                    },
-                    "angleRange": {
-                        "min": -10.0,
-                        "max": 10.0
-                    },
-                    "pyramidLevels": 3
-                },
-                "cadImport": {
-                    "enabled": true,
-                    "cadFilePath": "cad/model-b-glue-path.dxf",
-                    "cadFormat": "dxf",
-                    "cadUnit": "mm",
-                    "layerName": "glue-path",
-                    "entityTypes": [ "line", "arc", "circle", "polyline", "spline" ],
-                    "pathSimplificationEpsilon": 0.03,
-                    "minSegmentLengthMm": 0.05,
-                    "reverseYAxis": true,
-                    "transformByPose": true
-                },
-                "output": {
-                    "coordinateSpace": "pixel",
-                    "includeConfidence": true,
-                    "maxOutputPoints": 1500
-                }
-            },
-            "inspect": {
-                "camera": "Camera02",
-                "description": "检测阶段 — 局部高倍率检测胶宽/断胶/偏移/溢胶",
-                "cadReference": {
-                    "enabled": true,
-                    "source": "shared",
-                    "cadFilePath": "cad/model-b-glue-path.dxf",
-                    "layerName": "glue-path",
-                    "unit": "mm"
-                },
-                "imageQualityGate": {
-                    "enabled": true,
-                    "minContrast": 30.0,
-                    "maxContrast": 230.0,
-                    "minSaturation": 20.0,
-                    "minBrightness": 40.0,
-                    "maxBrightness": 225.0,
-                    "scoreThreshold": 0.6
-                },
-                "preprocess": {
-                    "medianBlurKernelSize": 3,
-                    "gaussianBlurKernelSize": 3,
-                    "gaussianBlurSigma": 0.8,
-                    "thresholdMethod": "otsu",
-                    "morphologyOpenKernel": 3,
-                    "morphologyCloseKernel": 3
-                },
-                "inspectionPlan": {
-                    "fovMm": 10.0,
-                    "fovSafetyMarginMm": 0.4,
-                    "singleShotOverlapRatio": 1.2,
-                    "multiShotMaxFrames": 4,
-                    "multiShotPriorityPoints": [ "corner", "joint", "start", "end", "curvatureMax" ],
-                    "equidistantOverlapRatio": 0.3,
-                    "maxShotsPerPlan": 12
-                },
-                "beadExtraction": {
-                    "roiSearchMarginMm": 1.2,
-                    "extractionMethod": "edgeDetection",
-                    "edgeThreshold": 25.0,
-                    "minBeadWidthPx": 5,
-                    "maxBeadWidthPx": 250,
-                    "edgeFilterSize": 3,
-                    "subpixelAccuracy": true
-                },
-                "glueWidthMeasurement": {
-                    "enabled": true,
-                    "measurementMethod": "normalProfile",
-                    "numSamplingPoints": 60,
-                    "samplingIntervalMm": 0.4,
-                    "profileLengthMm": 3.5,
-                    "subpixelInterpolation": true,
-                    "outlierRemovalEnabled": true,
-                    "outlierSigmaThreshold": 2.8
-                },
-                "continuityDetection": {
-                    "enabled": true,
-                    "detectionMethod": "edgeContinuity",
-                    "maxGapLengthMm": 0.8,
-                    "minBeadSegmentLengthMm": 2.5,
-                    "gapIntensityDropRatio": 0.45,
-                    "mergeGapDistanceMm": 0.4
-                },
-                "offsetDetection": {
-                    "enabled": true,
-                    "detectionMethod": "referenceComparison",
-                    "referenceSource": "designPath",
-                    "maxOffsetMm": 0.25,
-                    "offsetProfileLengthMm": 2.5,
-                    "numOffsetSamples": 40
-                },
-                "overflowDetection": {
-                    "enabled": true,
-                    "detectionMethod": "edgeDistance",
-                    "maxBeadWidthMm": 2.0,
-                    "overflowAreaRatioThreshold": 0.12,
-                    "overflowIntensityThreshold": 45.0
-                },
-                "defectClassification": {
-                    "enabled": true,
-                    "classificationMethod": "thresholdBased",
-                    "defectTypes": [
-                        {
-                            "type": "glueWidthTooNarrow",
-                            "enabled": true,
-                            "severity": "error",
-                            "minValueMm": 0.6,
-                            "maxValueMm": null,
-                            "continuousCheck": false
-                        },
-                        {
-                            "type": "glueWidthTooWide",
-                            "enabled": true,
-                            "severity": "warning",
-                            "minValueMm": null,
-                            "maxValueMm": 1.8,
-                            "continuousCheck": false
-                        },
-                        {
-                            "type": "discontinuity",
-                            "enabled": true,
-                            "severity": "error",
-                            "minValueMm": 0.4,
-                            "maxValueMm": null,
-                            "continuousCheck": true
-                        },
-                        {
-                            "type": "offsetExceeded",
-                            "enabled": true,
-                            "severity": "error",
-                            "minValueMm": 0.25,
-                            "maxValueMm": null,
-                            "continuousCheck": false
-                        },
-                        {
-                            "type": "overflowExceeded",
-                            "enabled": true,
-                            "severity": "error",
-                            "minValueMm": 2.0,
-                            "maxValueMm": null,
-                            "continuousCheck": false
-                        }
-                    ],
-                    "overallJudgment": {
-                        "method": "worstDefect",
-                        "passWhen": "noError",
-                        "allowWarnings": false
-                    }
-                }
-            },
-            "calibration": {
-                "locateCamera": {
-                    "cameraId": "Camera01",
-                    "method": "affine",
-                    "calibrationFile": "calib/camera01_affine.json",
-                    "pixelPerMmX": 0.05,
-                    "pixelPerMmY": 0.05,
-                    "originOffsetX": 0.0,
-                    "originOffsetY": 0.0,
-                    "rotationDeg": 0.0
-                },
-                "inspectCamera": {
-                    "cameraId": "Camera02",
-                    "method": "affine",
-                    "calibrationFile": "calib/camera02_affine.json",
-                    "pixelPerMmX": 0.02,
-                    "pixelPerMmY": 0.02,
-                    "originOffsetX": 0.0,
-                    "originOffsetY": 0.0,
-                    "rotationDeg": 0.0
-                }
-            },
-            "visualization": {
-                "locateOverlay": {
-                    "showTemplateMatch": true,
-                    "showGluePath": true,
-                    "showRoi": true,
-                    "gluePathColor": [ 0, 255, 0 ],
-                    "roiColor": [ 255, 255, 0 ],
-                    "templateMatchColor": [ 0, 255, 255 ]
-                },
-                "inspectOverlay": {
-                    "showBeadEdge": true,
-                    "showWidthProfile": true,
-                    "showDefectMarkers": true,
-                    "beadEdgeColor": [ 0, 255, 0 ],
-                    "widthProfileColor": [ 255, 255, 0 ],
-                    "defectColor": [ 0, 0, 255 ],
-                    "normalColor": [ 0, 255, 0 ],
-                    "showMeasurementLabels": true
-                }
-            }
+        "preprocess": {
+          "medianBlurKernelSize": 5,
+          "gaussianBlurKernelSize": 5,
+          "gaussianBlurSigma": 1.2,
+          "thresholdMethod": "adaptive",
+          "adaptiveBlockSize": 51,
+          "adaptiveC": 10,
+          "morphologyOpenKernel": 3,
+          "morphologyCloseKernel": 5
+        },
+        "templateMatching": {
+          "enabled": true,
+          "templateFilePath": "templates/model-a-locate-template.png",
+          "templateFormat": "png",
+          "matchingMethod": "shape",
+          "minScore": 0.7,
+          "maxOverlap": 0.4,
+          "scaleRange": {
+            "min": 0.95,
+            "max": 1.05
+          },
+          "angleRange": {
+            "min": -5.0,
+            "max": 5.0
+          },
+          "numLevels": 4,
+          "minContrast": 30.0,
+          "numFeatures": 500,
+          "metric": "usePolarity",
+          "subpixelAccuracy": true,
+          "roi": {
+            "x": 0,
+            "y": 0,
+            "width": 640,
+            "height": 480
+          }
+        },
+        "cadImport": {
+          "enabled": true,
+          "cadFilePath": "cad/model-a-glue-path.dxf",
+          "cadFormat": "dxf",
+          "cadUnit": "mm",
+          "layerName": "glue-path",
+          "entityTypes": ["line", "arc", "circle", "polyline", "spline"],
+          "pathSimplificationEpsilon": 0.05,
+          "minSegmentLengthMm": 0.1,
+          "reverseYAxis": true,
+          "transformByPose": true
+        },
+        "output": {
+          "coordinateSpace": "pixel",
+          "includeConfidence": true,
+          "maxOutputPoints": 1000
         }
-    ]
+      },
+      "inspect": {
+        "camera": "Camera02",
+        "description": "检测阶段 — 局部高倍率检测胶宽/断胶/偏移/溢胶",
+        "cadReference": {
+          "enabled": true,
+          "source": "shared",
+          "cadFilePath": "cad/model-a-glue-path.dxf",
+          "layerName": "glue-path",
+          "unit": "mm"
+        },
+        "imageQualityGate": {
+          "enabled": true,
+          "minContrast": 25.0,
+          "maxContrast": 220.0,
+          "minSaturation": 15.0,
+          "minBrightness": 35.0,
+          "maxBrightness": 230.0,
+          "scoreThreshold": 0.55
+        },
+        "preprocess": {
+          "medianBlurKernelSize": 3,
+          "gaussianBlurKernelSize": 3,
+          "gaussianBlurSigma": 0.8,
+          "thresholdMethod": "otsu",
+          "morphologyOpenKernel": 3,
+          "morphologyCloseKernel": 3
+        },
+        "inspectionPlan": {
+          "fovMm": 12.0,
+          "fovSafetyMarginMm": 0.3,
+          "singleShotOverlapRatio": 1.2,
+          "multiShotMaxFrames": 3,
+          "multiShotPriorityPoints": ["corner", "joint", "start", "end"],
+          "equidistantOverlapRatio": 0.3,
+          "maxShotsPerPlan": 10
+        },
+        "beadExtraction": {
+          "roiSearchMarginMm": 1.0,
+          "extractionMethod": "edgeDetection",
+          "edgeThreshold": 30.0,
+          "minBeadWidthPx": 5,
+          "maxBeadWidthPx": 200,
+          "edgeFilterSize": 3,
+          "subpixelAccuracy": true
+        },
+        "glueWidthMeasurement": {
+          "enabled": true,
+          "measurementMethod": "normalProfile",
+          "numSamplingPoints": 50,
+          "samplingIntervalMm": 0.5,
+          "profileLengthMm": 3.0,
+          "subpixelInterpolation": true,
+          "outlierRemovalEnabled": true,
+          "outlierSigmaThreshold": 3.0
+        },
+        "continuityDetection": {
+          "enabled": true,
+          "detectionMethod": "edgeContinuity",
+          "maxGapLengthMm": 1.0,
+          "minBeadSegmentLengthMm": 3.0,
+          "gapIntensityDropRatio": 0.5,
+          "mergeGapDistanceMm": 0.5
+        },
+        "offsetDetection": {
+          "enabled": true,
+          "detectionMethod": "referenceComparison",
+          "referenceSource": "designPath",
+          "maxOffsetMm": 0.3,
+          "offsetProfileLengthMm": 2.0,
+          "numOffsetSamples": 30
+        },
+        "overflowDetection": {
+          "enabled": true,
+          "detectionMethod": "edgeDistance",
+          "maxBeadWidthMm": 2.5,
+          "overflowAreaRatioThreshold": 0.15,
+          "overflowIntensityThreshold": 50.0
+        },
+        "defectClassification": {
+          "enabled": true,
+          "classificationMethod": "thresholdBased",
+          "defectTypes": [
+            {
+              "type": "glueWidthTooNarrow",
+              "enabled": true,
+              "severity": "error",
+              "minValueMm": 0.8,
+              "maxValueMm": null,
+              "continuousCheck": false
+            },
+            {
+              "type": "glueWidthTooWide",
+              "enabled": true,
+              "severity": "warning",
+              "minValueMm": null,
+              "maxValueMm": 2.2,
+              "continuousCheck": false
+            },
+            {
+              "type": "discontinuity",
+              "enabled": true,
+              "severity": "error",
+              "minValueMm": 0.5,
+              "maxValueMm": null,
+              "continuousCheck": true
+            },
+            {
+              "type": "offsetExceeded",
+              "enabled": true,
+              "severity": "error",
+              "minValueMm": 0.3,
+              "maxValueMm": null,
+              "continuousCheck": false
+            },
+            {
+              "type": "overflowExceeded",
+              "enabled": true,
+              "severity": "warning",
+              "minValueMm": 2.5,
+              "maxValueMm": null,
+              "continuousCheck": false
+            }
+          ],
+          "overallJudgment": {
+            "method": "worstDefect",
+            "passWhen": "noError",
+            "allowWarnings": true
+          }
+        }
+      },
+      "calibration": {
+        "locateCamera": {
+          "cameraId": "Camera01",
+          "method": "affine",
+          "calibrationFile": "calib/camera01_affine.json",
+          "pixelPerMmX": 0.05,
+          "pixelPerMmY": 0.05,
+          "originOffsetX": 0.0,
+          "originOffsetY": 0.0,
+          "rotationDeg": 0.0
+        },
+        "inspectCamera": {
+          "cameraId": "Camera02",
+          "method": "affine",
+          "calibrationFile": "calib/camera02_affine.json",
+          "pixelPerMmX": 0.02,
+          "pixelPerMmY": 0.02,
+          "originOffsetX": 0.0,
+          "originOffsetY": 0.0,
+          "rotationDeg": 0.0
+        }
+      },
+      "visualization": {
+        "locateOverlay": {
+          "showTemplateMatch": true,
+          "showGluePath": true,
+          "showRoi": true,
+          "gluePathColor": [0, 255, 0],
+          "roiColor": [255, 255, 0],
+          "templateMatchColor": [0, 255, 255]
+        },
+        "inspectOverlay": {
+          "showBeadEdge": true,
+          "showWidthProfile": true,
+          "showDefectMarkers": true,
+          "beadEdgeColor": [0, 255, 0],
+          "widthProfileColor": [255, 255, 0],
+          "defectColor": [0, 0, 255],
+          "normalColor": [0, 255, 0],
+          "showMeasurementLabels": true
+        }
+      },
+      "safety": {
+        "cameraMount": {
+          "type": "fixed",
+          "lensHeightMm": 350.0,
+          "safetyGapMm": 10.0,
+          "warningMarginMm": 5.0,
+          "footprint": {
+            "xMinMm": -50.0,
+            "xMaxMm": 50.0,
+            "yMinMm": -50.0,
+            "yMaxMm": 50.0
+          }
+        },
+        "motionLimits": {
+          "zSafeTransitMm": 340.0,
+          "zAlarmMm": 335.0,
+          "zDispenseMaxMm": 20.0,
+          "zRestMm": 0.0
+        },
+        "interlock": {
+          "enabled": true,
+          "checkBeforeDispense": true,
+          "checkBeforeInspection": true,
+          "checkBeforeJog": true,
+          "checkBeforeHome": true,
+          "autoLowerZBeforeXyMove": true
+        }
+      }
+    },
+    {
+      "productModel": "MODEL-B",
+      "description": "异形曲面产品，多段胶路，高精度要求",
+      "enabled": true,
+      "locate": {
+        "camera": "Camera01",
+        "description": "定位阶段 — 全局大视野找产品位姿，加载 CAD 胶路并变换至实际位置",
+        "imageQualityGate": {
+          "enabled": true,
+          "minContrast": 35.0,
+          "maxContrast": 220.0,
+          "minSaturation": 25.0,
+          "minBrightness": 45.0,
+          "maxBrightness": 215.0,
+          "scoreThreshold": 0.65
+        },
+        "preprocess": {
+          "medianBlurKernelSize": 5,
+          "gaussianBlurKernelSize": 5,
+          "gaussianBlurSigma": 1.5,
+          "thresholdMethod": "adaptive",
+          "adaptiveBlockSize": 61,
+          "adaptiveC": 12,
+          "morphologyOpenKernel": 3,
+          "morphologyCloseKernel": 5
+        },
+        "templateMatching": {
+          "enabled": true,
+          "templateFilePath": "templates/model-b-locate-template.png",
+          "templateFormat": "png",
+          "matchingMethod": "shape",
+          "minScore": 0.65,
+          "maxOverlap": 0.35,
+          "scaleRange": {
+            "min": 0.93,
+            "max": 1.07
+          },
+          "angleRange": {
+            "min": -10.0,
+            "max": 10.0
+          },
+          "numLevels": 5,
+          "minContrast": 25.0,
+          "numFeatures": 600,
+          "metric": "usePolarity",
+          "subpixelAccuracy": true,
+          "roi": {
+            "x": 0,
+            "y": 0,
+            "width": 800,
+            "height": 600
+          }
+        },
+        "cadImport": {
+          "enabled": true,
+          "cadFilePath": "cad/model-b-glue-path.dxf",
+          "cadFormat": "dxf",
+          "cadUnit": "mm",
+          "layerName": "glue-path",
+          "entityTypes": ["line", "arc", "circle", "polyline", "spline"],
+          "pathSimplificationEpsilon": 0.03,
+          "minSegmentLengthMm": 0.05,
+          "reverseYAxis": true,
+          "transformByPose": true
+        },
+        "output": {
+          "coordinateSpace": "pixel",
+          "includeConfidence": true,
+          "maxOutputPoints": 1500
+        }
+      },
+      "inspect": {
+        "camera": "Camera02",
+        "description": "检测阶段 — 局部高倍率检测胶宽/断胶/偏移/溢胶",
+        "cadReference": {
+          "enabled": true,
+          "source": "shared",
+          "cadFilePath": "cad/model-b-glue-path.dxf",
+          "layerName": "glue-path",
+          "unit": "mm"
+        },
+        "imageQualityGate": {
+          "enabled": true,
+          "minContrast": 30.0,
+          "maxContrast": 230.0,
+          "minSaturation": 20.0,
+          "minBrightness": 40.0,
+          "maxBrightness": 225.0,
+          "scoreThreshold": 0.6
+        },
+        "preprocess": {
+          "medianBlurKernelSize": 3,
+          "gaussianBlurKernelSize": 3,
+          "gaussianBlurSigma": 0.8,
+          "thresholdMethod": "otsu",
+          "morphologyOpenKernel": 3,
+          "morphologyCloseKernel": 3
+        },
+        "inspectionPlan": {
+          "fovMm": 10.0,
+          "fovSafetyMarginMm": 0.4,
+          "singleShotOverlapRatio": 1.2,
+          "multiShotMaxFrames": 4,
+          "multiShotPriorityPoints": ["corner", "joint", "start", "end", "curvatureMax"],
+          "equidistantOverlapRatio": 0.3,
+          "maxShotsPerPlan": 12
+        },
+        "beadExtraction": {
+          "roiSearchMarginMm": 1.2,
+          "extractionMethod": "edgeDetection",
+          "edgeThreshold": 25.0,
+          "minBeadWidthPx": 5,
+          "maxBeadWidthPx": 250,
+          "edgeFilterSize": 3,
+          "subpixelAccuracy": true
+        },
+        "glueWidthMeasurement": {
+          "enabled": true,
+          "measurementMethod": "normalProfile",
+          "numSamplingPoints": 60,
+          "samplingIntervalMm": 0.4,
+          "profileLengthMm": 3.5,
+          "subpixelInterpolation": true,
+          "outlierRemovalEnabled": true,
+          "outlierSigmaThreshold": 2.8
+        },
+        "continuityDetection": {
+          "enabled": true,
+          "detectionMethod": "edgeContinuity",
+          "maxGapLengthMm": 0.8,
+          "minBeadSegmentLengthMm": 2.5,
+          "gapIntensityDropRatio": 0.45,
+          "mergeGapDistanceMm": 0.4
+        },
+        "offsetDetection": {
+          "enabled": true,
+          "detectionMethod": "referenceComparison",
+          "referenceSource": "designPath",
+          "maxOffsetMm": 0.25,
+          "offsetProfileLengthMm": 2.5,
+          "numOffsetSamples": 40
+        },
+        "overflowDetection": {
+          "enabled": true,
+          "detectionMethod": "edgeDistance",
+          "maxBeadWidthMm": 2.0,
+          "overflowAreaRatioThreshold": 0.12,
+          "overflowIntensityThreshold": 45.0
+        },
+        "defectClassification": {
+          "enabled": true,
+          "classificationMethod": "thresholdBased",
+          "defectTypes": [
+            {
+              "type": "glueWidthTooNarrow",
+              "enabled": true,
+              "severity": "error",
+              "minValueMm": 0.6,
+              "maxValueMm": null,
+              "continuousCheck": false
+            },
+            {
+              "type": "glueWidthTooWide",
+              "enabled": true,
+              "severity": "warning",
+              "minValueMm": null,
+              "maxValueMm": 1.8,
+              "continuousCheck": false
+            },
+            {
+              "type": "discontinuity",
+              "enabled": true,
+              "severity": "error",
+              "minValueMm": 0.4,
+              "maxValueMm": null,
+              "continuousCheck": true
+            },
+            {
+              "type": "offsetExceeded",
+              "enabled": true,
+              "severity": "error",
+              "minValueMm": 0.25,
+              "maxValueMm": null,
+              "continuousCheck": false
+            },
+            {
+              "type": "overflowExceeded",
+              "enabled": true,
+              "severity": "error",
+              "minValueMm": 2.0,
+              "maxValueMm": null,
+              "continuousCheck": false
+            }
+          ],
+          "overallJudgment": {
+            "method": "worstDefect",
+            "passWhen": "noError",
+            "allowWarnings": false
+          }
+        }
+      },
+      "calibration": {
+        "locateCamera": {
+          "cameraId": "Camera01",
+          "method": "affine",
+          "calibrationFile": "calib/camera01_affine.json",
+          "pixelPerMmX": 0.05,
+          "pixelPerMmY": 0.05,
+          "originOffsetX": 0.0,
+          "originOffsetY": 0.0,
+          "rotationDeg": 0.0
+        },
+        "inspectCamera": {
+          "cameraId": "Camera02",
+          "method": "affine",
+          "calibrationFile": "calib/camera02_affine.json",
+          "pixelPerMmX": 0.02,
+          "pixelPerMmY": 0.02,
+          "originOffsetX": 0.0,
+          "originOffsetY": 0.0,
+          "rotationDeg": 0.0
+        }
+      },
+      "visualization": {
+        "locateOverlay": {
+          "showTemplateMatch": true,
+          "showGluePath": true,
+          "showRoi": true,
+          "gluePathColor": [0, 255, 0],
+          "roiColor": [255, 255, 0],
+          "templateMatchColor": [0, 255, 255]
+        },
+        "inspectOverlay": {
+          "showBeadEdge": true,
+          "showWidthProfile": true,
+          "showDefectMarkers": true,
+          "beadEdgeColor": [0, 255, 0],
+          "widthProfileColor": [255, 255, 0],
+          "defectColor": [0, 0, 255],
+          "normalColor": [0, 255, 0],
+          "showMeasurementLabels": true
+        }
+      },
+      "safety": {
+        "cameraMount": {
+          "type": "fixed",
+          "lensHeightMm": 350.0,
+          "safetyGapMm": 12.0,
+          "warningMarginMm": 5.0,
+          "footprint": {
+            "xMinMm": -60.0,
+            "xMaxMm": 60.0,
+            "yMinMm": -60.0,
+            "yMaxMm": 60.0
+          }
+        },
+        "motionLimits": {
+          "zSafeTransitMm": 338.0,
+          "zAlarmMm": 333.0,
+          "zDispenseMaxMm": 25.0,
+          "zRestMm": 0.0
+        },
+        "interlock": {
+          "enabled": true,
+          "checkBeforeDispense": true,
+          "checkBeforeInspection": true,
+          "checkBeforeJog": true,
+          "checkBeforeHome": true,
+          "autoLowerZBeforeXyMove": true
+        }
+      }
+    }
+  ]
 }

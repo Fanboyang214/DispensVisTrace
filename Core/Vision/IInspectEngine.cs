@@ -1,16 +1,21 @@
-﻿using Core.Models;
+using Core.Models;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Core.Vision
 {
-    public interface IInspectEngine:IDisposable
+    public interface IInspectEngine : IDisposable
     {
-        Task InitializeAsync(InspectConfig config);
+        /// <summary>
+        /// 初始化引擎（读取配置、加载模板）。重复调用必须幂等。
+        /// </summary>
+        /// <returns>是否初始化成功；失败时禁止调用 <see cref="Inspect"/>。</returns>
+        bool Initialize(InspectConfig config);
 
-        void Inspect();
+        /// <summary>
+        /// 对指定图像执行一次缺陷检测。
+        /// 线程安全：同一实例不保证并发安全，调用方需自行串行化。
+        /// </summary>
+        /// <param name="image">待检测的图像。</param>
+        void Inspect(InspectionImage image);
     }
 }

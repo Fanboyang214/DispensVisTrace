@@ -35,5 +35,11 @@ namespace Core.Models
         /// </summary>
         [JsonPropertyName("output")]
         public Dictionary<string, object> Output { get; set; }  = new();
+        /// <summary>
+        /// ROI配置
+        /// </summary>
+        [JsonPropertyName("roi")]
+        public Dictionary<string, object> Roi { get; set; } = new();
+
     }
 }

@@ -13,10 +13,4 @@
     <Folder Include="Persisitence\" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Reference Include="halcondotnet">
-      <HintPath>..\..\..\..\ProgramFiles\MVTec\HALCON-24.11-Progress-Steady\bin\dotnet35\halcondotnet.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-
 </Project>

@@ -160,7 +160,7 @@ public sealed class CameraAcquisitionService : ICameraAcquisitionService
         {
             if (_state is not CameraState.Armed)
             {
-                _log.Warn("{Camera} 未处于采集状态（当前 {State}），忽略软触发", CameraName, _state);
+                _log.Warn("{Camera} 未处于预备采集状态（当前 {State}），忽略软触发", CameraName, _state);
                 return;
             }
 

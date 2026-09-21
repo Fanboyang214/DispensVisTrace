@@ -1,3 +1,4 @@
+using Core.Calibration;
 using Core.Logging;
 using Core.Models;
 using Core.Vision;
@@ -5,6 +6,7 @@ using HalconDotNet;
 using netDxf;
 using netDxf.Entities;
 using Prism.Ioc;
+using Prism.Mvvm;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -23,6 +25,7 @@ namespace Vision.Halcon
     {
         private  LocateConfig? _config;
         private ILogService _logService;
+        private ICalibrationTransform _calibrationTransform;
 
         private bool _disposed; 
         
@@ -62,8 +65,12 @@ namespace Vision.Halcon
         private double _pathSimplificationEpsilon;
         private double _minSegmentLengthMm;
 
+        
+
         /// <summary>CAD 设计路径缓存（已 Y 轴反转 + 简化，与产品位姿无关），null 表示尚未加载。</summary>
         private List<PointF>? _designPath;
+
+
 
 
 
@@ -71,6 +78,7 @@ namespace Vision.Halcon
         public HalconLocateEngine(IContainerProvider containerProvider)
         {
             _logService = containerProvider.Resolve<ILogService>();
+            _calibrationTransform = containerProvider.Resolve<ICalibrationTransform>();
 #if DEBUG
             VerifyCadPathMath();
 #endif
@@ -454,16 +462,18 @@ namespace Vision.Halcon
         }
 
         /// <summary>把 CAD 路径点按产品位姿旋转并平移到图像坐标。</summary>
-        // ponytail: 只做旋转 + 平移。ProductPose.Scale 目前无人赋值（默认 0），
+        // ponytail: 只做旋转 + 平移。ProductPose.Scale 目前无人赋值（默认 1），
         // 等模板匹配开始输出缩放后，这里要按 Scale 缩放后再平移。
-        private static PointF TransformByPose(PointF point, ProductPose pose)
+        private  PointF TransformByPose(PointF point, ProductPose pose)
         {
             double cos = Math.Cos(pose.AngleRad);
             double sin = Math.Sin(pose.AngleRad);
 
+            var (col ,row) = _calibrationTransform.PixelToWorld(pose.CenterCol, pose.CenterRow);
+
             return new PointF(
-                (float)(point.X * cos - point.Y * sin) + (float)pose.CenterCol,
-                (float)(point.X * sin + point.Y * cos) + (float)pose.CenterRow);
+                (float)(point.X * cos - point.Y * sin) + (float)col,
+                (float)(point.X * sin + point.Y * cos) + (float)row);
         }
 
         /// <summary>Douglas-Peucker 路径简化：删除离首尾连线不足 epsilonMm 的冗余点，首尾点必留。</summary>
@@ -563,7 +573,7 @@ namespace Vision.Halcon
         /// CAD 路径几何算法的自检。几何符号或阈值写反时，调试期第一次构造引擎就会断言失败，
         /// 而不是等到现场发现胶路跑偏。由构造函数调用。
         /// </summary>
-        internal static void VerifyCadPathMath()
+        internal  void VerifyCadPathMath()
         {
             // 绕原点逆时针旋转 90°，平移到 row=10 / col=20
             var pose = new ProductPose { AngleRad = Math.PI / 2, CenterRow = 10, CenterCol = 20 };

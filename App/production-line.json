@@ -1,0 +1,557 @@
+[
+    {
+        "id": "dispenser01",
+        "name": "GlueValve",
+        "driverType": "Modbus",
+        "ipAddress": "192.168.1.30",
+        "port": 502,
+        "stationAddress": 1,
+        "cpuSlot": 0,
+        "cycleTimeMs": 1000,
+        "timeoutMs": 3000,
+        "retryCount": 3,
+        "description": "点胶阀（数字 ValveState + 模拟 PressureSet/FlowSet 两套）",
+        "tags": [
+            {
+                "id": "dispenser01-pressure",
+                "name": "Pressure",
+                "modbusAddress": "40001",
+                "dataType": "Float32",
+                "access": "Read",
+                "unit": "bar",
+                "description": "胶阀压力"
+            },
+            {
+                "id": "dispenser01-flow",
+                "name": "Flow",
+                "modbusAddress": "40002",
+                "dataType": "Float32",
+                "access": "Read",
+                "unit": "ml/min",
+                "description": "胶阀流量"
+            },
+            {
+                "id": "dispenser01-temperature",
+                "name": "Temperature",
+                "modbusAddress": "40003",
+                "dataType": "Float32",
+                "access": "Read",
+                "unit": "°C",
+                "description": "胶阀温度"
+            },
+            {
+                "id": "dispenser01-valvestate",
+                "name": "ValveState",
+                "modbusAddress": "00016",
+                "dataType": "Bool",
+                "access": "ReadWrite",
+                "description": "开关阀 On/Off"
+            },
+            {
+                "id": "dispenser01-pressureset",
+                "name": "PressureSet",
+                "modbusAddress": "40006",
+                "dataType": "Float32",
+                "access": "ReadWrite",
+                "unit": "bar",
+                "description": "压力设定值"
+            },
+            {
+                "id": "dispenser01-flowset",
+                "name": "FlowSet",
+                "modbusAddress": "40007",
+                "dataType": "Float32",
+                "access": "ReadWrite",
+                "unit": "ml/min",
+                "description": "流量设定值"
+            },
+            {
+                "id": "dispenser01-materiallevel",
+                "name": "MaterialLevel",
+                "modbusAddress": "40004",
+                "dataType": "Float32",
+                "access": "Read",
+                "unit": "%",
+                "description": "料位"
+            },
+            {
+                "id": "dispenser01-cumulativevolume",
+                "name": "CumulativeVolume",
+                "modbusAddress": "40005",
+                "dataType": "Float32",
+                "access": "Read",
+                "unit": "ml",
+                "description": "累计体积"
+            },
+            {
+                "id": "dispenser01-remainingglue",
+                "name": "RemainingGlue",
+                "modbusAddress": "40008",
+                "dataType": "Float32",
+                "access": "Read",
+                "unit": "ml",
+                "templateId": "dp-glue-remaining",
+                "description": "剩余胶量（趋势点：料罐剩余胶量，随消耗下降；dp-glue-remaining 模拟量/液位类模板）"
+            }
+        ]
+    },
+    {
+        "id": "motion01",
+        "name": "MotionPlatForm",
+        "driverType": "S7",
+        "ipAddress": "192.168.1.31",
+        "port": 102,
+        "stationAddress": 1,
+        "cpuSlot": 1,
+        "cycleTimeMs": 200,
+        "timeoutMs": 3000,
+        "retryCount": 3,
+        "description": "运动轴/机器人（含轨迹缓冲下载）",
+        "tags": [
+            {
+                "id": "motion01-x",
+                "name": "X",
+                "s7Address": "DB1.DBD0",
+                "dataType": "Float32",
+                "access": "Read",
+                "unit": "mm"
+            },
+            {
+                "id": "motion01-y",
+                "name": "Y",
+                "s7Address": "DB1.DBD4",
+                "dataType": "Float32",
+                "access": "Read",
+                "unit": "mm"
+            },
+            {
+                "id": "motion01-z",
+                "name": "Z",
+                "s7Address": "DB1.DBD8",
+                "dataType": "Float32",
+                "access": "Read",
+                "unit": "mm"
+            },
+            {
+                "id": "motion01-speed",
+                "name": "Speed",
+                "s7Address": "DB1.DBD12",
+                "dataType": "Float32",
+                "access": "Read",
+                "unit": "mm/s"
+            },
+            {
+                "id": "motion01-inposition",
+                "name": "InPosition",
+                "s7Address": "DB1.DBX20.0",
+                "dataType": "Bool",
+                "access": "Read"
+            },
+            {
+                "id": "motion01-homed",
+                "name": "Homed",
+                "s7Address": "DB1.DBX20.1",
+                "dataType": "Bool",
+                "access": "Read"
+            },
+            {
+                "id": "motion01-targetx",
+                "name": "TargetX",
+                "s7Address": "DB2.DBD0",
+                "dataType": "Float32",
+                "access": "ReadWrite",
+                "unit": "mm",
+                "description": "jog/回零目标 X"
+            },
+            {
+                "id": "motion01-targety",
+                "name": "TargetY",
+                "s7Address": "DB2.DBD4",
+                "dataType": "Float32",
+                "access": "ReadWrite",
+                "unit": "mm",
+                "description": "jog/回零目标 Y"
+            },
+            {
+                "id": "motion01-movecmd",
+                "name": "MoveCmd",
+                "s7Address": "DB2.DBX0.0",
+                "dataType": "Bool",
+                "access": "ReadWrite",
+                "description": "jog/回零单步触发"
+            },
+            {
+                "id": "motion01-trajectorybuffer",
+                "name": "TrajectoryBuffer",
+                "s7Address": "DB3",
+                "dataType": "String",
+                "access": "ReadWrite",
+                "description": "整段轨迹缓冲（DispensePlan 序列化）；原类型为 blob，TagDataType 无 blob，暂映射 String"
+            },
+            {
+                "id": "motion01-start",
+                "name": "Start",
+                "s7Address": "DB2.DBX0.1",
+                "dataType": "Bool",
+                "access": "ReadWrite",
+                "description": "触发轨迹执行"
+            },
+            {
+                "id": "motion01-abort",
+                "name": "Abort",
+                "s7Address": "DB2.DBX0.2",
+                "dataType": "Bool",
+                "access": "ReadWrite",
+                "description": "中断轨迹执行"
+            },
+            {
+                "id": "motion01-safetransitheight",
+                "name": "SafeTransitHeight",
+                "s7Address": "DB1.DBD24",
+                "dataType": "Float32",
+                "access": "ReadWrite",
+                "unit": "mm",
+                "description": "安全通行高度（上位机写入配置）"
+            },
+            {
+                "id": "motion01-zalarmheight",
+                "name": "ZAlarmHeight",
+                "s7Address": "DB1.DBD28",
+                "dataType": "Float32",
+                "access": "ReadWrite",
+                "unit": "mm",
+                "description": "Z轴警戒高度"
+            },
+            {
+                "id": "motion01-cameralensheight",
+                "name": "CameraLensHeight",
+                "s7Address": "DB1.DBD32",
+                "dataType": "Float32",
+                "access": "ReadWrite",
+                "unit": "mm",
+                "description": "Camera01 镜头最低点高度"
+            },
+            {
+                "id": "motion01-camerafpxmin",
+                "name": "CameraFootprintXMin",
+                "s7Address": "DB1.DBD36",
+                "dataType": "Float32",
+                "access": "ReadWrite",
+                "unit": "mm",
+                "description": "Camera01 投影区域 X 最小值"
+            },
+            {
+                "id": "motion01-camerafpxmax",
+                "name": "CameraFootprintXMax",
+                "s7Address": "DB1.DBD40",
+                "dataType": "Float32",
+                "access": "ReadWrite",
+                "unit": "mm",
+                "description": "Camera01 投影区域 X 最大值"
+            },
+            {
+                "id": "motion01-camerafpymin",
+                "name": "CameraFootprintYMin",
+                "s7Address": "DB1.DBD44",
+                "dataType": "Float32",
+                "access": "ReadWrite",
+                "unit": "mm",
+                "description": "Camera01 投影区域 Y 最小值"
+            },
+            {
+                "id": "motion01-camerafpymax",
+                "name": "CameraFootprintYMax",
+                "s7Address": "DB1.DBD48",
+                "dataType": "Float32",
+                "access": "ReadWrite",
+                "unit": "mm",
+                "description": "Camera01 投影区域 Y 最大值"
+            },
+            {
+                "id": "motion01-safetystatus",
+                "name": "SafetyStatus",
+                "s7Address": "DB1.DBX24.0",
+                "dataType": "String",
+                "access": "Read",
+                "enum": [ "safe", "warning", "critical" ],
+                "description": "当前安全状态（enum 映射为 String）"
+            }
+        ]
+    },
+    {
+        "id": "camera01",
+        "name": "LocateCamera",
+        "driverType": "MQTT",
+        "ipAddress": "192.168.1.40",
+        "port": 1883,
+        "stationAddress": 1,
+        "cpuSlot": 0,
+        "cycleTimeMs": 1000,
+        "timeoutMs": 3000,
+        "retryCount": 3,
+        "description": "定位相机（全局大视野 — 找产品位姿/胶路；默认硬件触发，软件触发补触发/调试）",
+        "tags": [
+            {
+                "id": "camera01-trigger",
+                "name": "Trigger",
+                "address": "cam/trigger",
+                "dataType": "Bool",
+                "access": "ReadWrite",
+                "description": "软件触发写入点（调试/手动/补触发），也回读最新触发状态"
+            },
+            {
+                "id": "camera01-frameready",
+                "name": "FrameReady",
+                "address": "cam/frame-ready",
+                "dataType": "Bool",
+                "access": "Read",
+                "description": "相机抓拍完成，图像已就绪"
+            },
+            {
+                "id": "camera01-triggertimeout",
+                "name": "TriggerTimeout",
+                "address": "cam/trigger-timeout",
+                "dataType": "Int32",
+                "access": "ReadWrite",
+                "unit": "ms",
+                "description": "触发超时阈值（配置）"
+            },
+            {
+                "id": "camera01-triggererror",
+                "name": "TriggerError",
+                "address": "cam/trigger-error",
+                "dataType": "String",
+                "access": "Read",
+                "description": "最后触发错误信息，空=无错误"
+            },
+            {
+                "id": "camera01-triggercount",
+                "name": "TriggerCount",
+                "address": "cam/trigger-count",
+                "dataType": "Int32",
+                "access": "Read",
+                "description": "累计触发次数（诊断触发丢失）"
+            },
+            {
+                "id": "camera01-lasttriggersource",
+                "name": "LastTriggerSource",
+                "address": "cam/trigger-source",
+                "dataType": "String",
+                "access": "Read",
+                "enum": [ "hardware", "software" ],
+                "description": "最近一次触发的来源"
+            },
+            {
+                "id": "camera01-lastlocateconfidence",
+                "name": "LastLocateConfidence",
+                "address": "cam/locate-conf",
+                "dataType": "Float32",
+                "access": "Read"
+            },
+            {
+                "id": "camera01-locateimageurl",
+                "name": "LocateImageURL",
+                "address": "cam/locate-image-url",
+                "dataType": "String",
+                "access": "Read"
+            }
+        ]
+    },
+    {
+        "id": "camera02",
+        "name": "InspectCamera",
+        "driverType": "MQTT",
+        "ipAddress": "192.168.1.41",
+        "port": 1883,
+        "stationAddress": 1,
+        "cpuSlot": 0,
+        "cycleTimeMs": 1000,
+        "timeoutMs": 3000,
+        "retryCount": 3,
+        "description": "检测相机（局部高倍率 — 胶宽/断胶/偏移检测；软件触发，由 DispenseReceipt 事件驱动；随动安装在运动轴 Z 轴上，InspectionPlan 引导定位）",
+        "tags": [
+            {
+                "id": "camera02-trigger",
+                "name": "Trigger",
+                "address": "cam/trigger",
+                "dataType": "Bool",
+                "access": "ReadWrite",
+                "description": "软件触发写入点（InspectionPlan 驱动）"
+            },
+            {
+                "id": "camera02-frameready",
+                "name": "FrameReady",
+                "address": "cam/frame-ready",
+                "dataType": "Bool",
+                "access": "Read",
+                "description": "相机抓拍完成，图像已就绪"
+            },
+            {
+                "id": "camera02-triggertimeout",
+                "name": "TriggerTimeout",
+                "address": "cam/trigger-timeout",
+                "dataType": "Int32",
+                "access": "ReadWrite",
+                "unit": "ms",
+                "description": "触发超时阈值（配置）"
+            },
+            {
+                "id": "camera02-triggererror",
+                "name": "TriggerError",
+                "address": "cam/trigger-error",
+                "dataType": "String",
+                "access": "Read",
+                "description": "最后触发错误信息，空=无错误"
+            },
+            {
+                "id": "camera02-triggercount",
+                "name": "TriggerCount",
+                "address": "cam/trigger-count",
+                "dataType": "Int32",
+                "access": "Read",
+                "description": "累计触发次数（诊断触发丢失）"
+            },
+            {
+                "id": "camera02-lasttriggersource",
+                "name": "LastTriggerSource",
+                "address": "cam/trigger-source",
+                "dataType": "String",
+                "access": "Read",
+                "enum": [ "hardware", "software" ],
+                "description": "最近一次触发的来源"
+            },
+            {
+                "id": "camera02-inspectplanshots",
+                "name": "InspectionPlanShots",
+                "address": "cam/inspect-plan-shots",
+                "dataType": "Int32",
+                "access": "Read",
+                "description": "本次检测计划的拍摄帧数（动态值）"
+            },
+            {
+                "id": "camera02-currentshotindex",
+                "name": "CurrentShotIndex",
+                "address": "cam/inspect-shot-index",
+                "dataType": "Int32",
+                "access": "Read",
+                "description": "多帧检测中当前帧序号"
+            },
+            {
+                "id": "camera02-inspectioncomplete",
+                "name": "InspectionComplete",
+                "address": "cam/inspect-complete",
+                "dataType": "Bool",
+                "access": "Read",
+                "description": "多帧检测全部完成"
+            },
+            {
+                "id": "camera02-lastinspectconfidence",
+                "name": "LastInspectConfidence",
+                "address": "cam/inspect-conf",
+                "dataType": "Float32",
+                "access": "Read"
+            },
+            {
+                "id": "camera02-inspectimageurl",
+                "name": "InspectImageURL",
+                "address": "cam/inspect-image-url",
+                "dataType": "String",
+                "access": "Read"
+            },
+            {
+                "id": "camera02-defectcount",
+                "name": "DefectCount",
+                "address": "cam/ng-count",
+                "dataType": "Int32",
+                "access": "Read",
+                "unit": "pcs",
+                "templateId": "dp-inspect-defect",
+                "description": "不良数量（趋势点：检测相机发布的累计不良/NG 计数；dp-inspect-defect 不良计数类模板）"
+            }
+        ]
+    },
+    {
+        "id": "plc01",
+        "name": "ProductionLine",
+        "driverType": "S7",
+        "ipAddress": "192.168.1.32",
+        "port": 102,
+        "stationAddress": 1,
+        "cpuSlot": 1,
+        "cycleTimeMs": 500,
+        "timeoutMs": 3000,
+        "retryCount": 3,
+        "description": "产线/主控（含触发状态监控点）",
+        "tags": [
+            {
+                "id": "plc01-start",
+                "name": "Start",
+                "s7Address": "DB2.DBX0.0",
+                "dataType": "Bool",
+                "access": "ReadWrite"
+            },
+            {
+                "id": "plc01-stop",
+                "name": "Stop",
+                "s7Address": "DB2.DBX0.1",
+                "dataType": "Bool",
+                "access": "ReadWrite"
+            },
+            {
+                "id": "plc01-reset",
+                "name": "Reset",
+                "s7Address": "DB2.DBX0.2",
+                "dataType": "Bool",
+                "access": "ReadWrite"
+            },
+            {
+                "id": "plc01-cycleactive",
+                "name": "CycleActive",
+                "s7Address": "DB2.DBX0.3",
+                "dataType": "Bool",
+                "access": "Read"
+            },
+            {
+                "id": "plc01-emergencystop",
+                "name": "EmergencyStop",
+                "s7Address": "DB2.DBX0.4",
+                "dataType": "Bool",
+                "access": "Read"
+            },
+            {
+                "id": "plc01-partarrived",
+                "name": "PartArrived",
+                "s7Address": "DB2.DBX0.5",
+                "dataType": "Bool",
+                "access": "Read",
+                "description": "产品到位传感器信号（硬触发已发生）"
+            },
+            {
+                "id": "plc01-camera01triggerout",
+                "name": "Camera01TriggerOut",
+                "s7Address": "DB2.DBX0.6",
+                "dataType": "Bool",
+                "access": "Read",
+                "description": "发往 Camera01 的硬件触发脉冲状态镜像"
+            },
+            {
+                "id": "plc01-camera02done",
+                "name": "Camera02Done",
+                "s7Address": "DB2.DBX0.7",
+                "dataType": "Bool",
+                "access": "Read",
+                "description": "出胶完成信号（备选 Camera02 触发源，默认走上位机 DispenseReceipt 事件）"
+            },
+            {
+                "id": "plc01-productioncount",
+                "name": "ProductionCount",
+                "s7Address": "DB4.DBD0",
+                "dataType": "Int32",
+                "access": "Read",
+                "unit": "pcs",
+                "templateId": "dp-line-count",
+                "description": "产量计数（趋势点：每完成一件 +1 的累积计数器，由 PLC 维护；复用 dp-line-count 计数类模板）"
+            }
+        ]
+    }
+]

@@ -30,23 +30,25 @@ public sealed class HikvisionMvsCameraDriver : ICameraDriver
 
     private readonly ILogService _log;
     private IDevice? _device;
-    private TriggerSource _triggerSource = TriggerSource.Software;
+    private TriggerSource _triggerSource = TriggerSource.Hardware;
     private bool _pixelTypeWarned;
 
+    public bool IsConnected => _device?.IsConnected ?? false;
+
+    public event EventHandler<CameraFrameData>? FrameCaptured;
+    public event EventHandler<CameraErrorEventArgs>? ErrorOccurred;
+
+
+    public string CameraName { get; }
+
+    public CameraInfo? Info { get; private set; }
     public HikvisionMvsCameraDriver(string cameraName, ILogService log)
     {
         CameraName = cameraName;
         _log = log.ForContext<HikvisionMvsCameraDriver>();
     }
 
-    public string CameraName { get; }
-
-    public CameraInfo? Info { get; private set; }
-
-    public bool IsConnected => _device?.IsConnected ?? false;
-
-    public event EventHandler<CameraFrameData>? FrameCaptured;
-    public event EventHandler<CameraErrorEventArgs>? ErrorOccurred;
+    
 
     public Task OpenAsync(CameraConfig config, CancellationToken ct)
     {
@@ -164,6 +166,7 @@ public sealed class HikvisionMvsCameraDriver : ICameraDriver
             throw new InvalidOperationException($"{CameraName} 未配置相机序列号（CameraConfig.SerialNumber），无法确定连哪台相机");
 
         var devices = new List<IDeviceInfo>();
+        //枚举gige和usb相机
         var code = DeviceEnumerator.EnumDevices(
             DeviceTLayerType.MvGigEDevice | DeviceTLayerType.MvUsbDevice, out devices);
 

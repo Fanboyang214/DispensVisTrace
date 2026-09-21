@@ -1,10 +1,12 @@
 using App.Infrastructure;
+using Calibration;
 using Core.Logging;
 using Core.Vision;
 using NLog;
 using NLog.Config;
 using NLog.Targets;
 using Prism.Ioc;
+using Prism.Modularity;
 using Prism.Unity;
 using System;
 using System.IO;
@@ -78,7 +80,11 @@ namespace App
 
             // 日志服务全局单例：LogService 本身无状态，按类型 ForContext<T>() 可得到独立命名的子日志器
             containerRegistry.RegisterSingleton<ILogService>(() => new LogService(LogService.DefaultLoggerName));
+
+           
         }
+
+
 
         /// <summary>
         /// 装载 exe 同目录下的 NLog.config。
@@ -178,6 +184,11 @@ namespace App
             {
                 // 连弹窗都失败时不再向上抛，避免二次异常掩盖原始异常
             }
+        }
+
+        protected override void ConfigureModuleCatalog(IModuleCatalog moduleCatalog)
+        {
+            moduleCatalog.AddModule<CalibrationModule>();
         }
     }
 }

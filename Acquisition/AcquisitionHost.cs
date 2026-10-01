@@ -1,7 +1,7 @@
-﻿using Core.Interfaces;
+using Core.Interfaces;
+using Core.Logging;
 using Core.Models;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using MvCameraControl;
 using System;
 using System.Collections.Concurrent;
@@ -22,8 +22,13 @@ namespace Acquisition
         private readonly ConcurrentDictionary<string, DeviceRunState> _devices = new();
         private readonly IDriverFactory _driverFactory;
         private readonly AcquisitionChannel _channel;
-        private readonly ILogger<AcquisitionHost> _logger;
-        private readonly ILoggerFactory _loggerFactory;
+        private readonly ILogService _log;
+        /// <summary>
+        /// 未加类型上下文的日志服务，专用于为子组件派生日志器。
+        /// 不能改用 <see cref="_log"/>：<see cref="ILogService.ForContext"/> 是替换名称而非追加，
+        /// 传下去会让 DeviceCollector 的日志来源错误地显示为 AcquisitionHost。
+        /// </summary>
+        private readonly ILogService _logFactoryService;
         private CancellationTokenSource? _hostCts;
 
         /// <summary>
@@ -31,32 +36,31 @@ namespace Acquisition
         /// </summary>
         /// <param name="driverFactory">驱动工厂，用于为每台设备创建协议驱动</param>
         /// <param name="channel">共享采集管道，所有设备写入同一管道</param>
-        /// <param name="logger">宿主日志记录器</param>
-        /// <param name="loggerFactory">日志工厂，用于为每个 DeviceCollector 创建独立日志器</param>
+        /// <param name="log">日志服务；本类取 <see cref="AcquisitionHost"/> 上下文的子日志器，
+        /// 同时保留原服务用于为每台设备的 <see cref="DeviceCollector"/> 派生日志器</param>
         public AcquisitionHost(
             IDriverFactory driverFactory,
             AcquisitionChannel channel,
-            ILogger<AcquisitionHost> logger,
-            ILoggerFactory loggerFactory)
+            ILogService log)
         {
             _driverFactory = driverFactory ?? throw new ArgumentNullException(nameof(driverFactory));
             _channel = channel ?? throw new ArgumentNullException(nameof(channel));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
+            _logFactoryService = log ?? throw new ArgumentNullException(nameof(log));
+            _log = _logFactoryService.ForContext<AcquisitionHost>();
         }
 
         /// <inheritdoc />
         public Task StartAsync(CancellationToken cancellationToken)
         {
             _hostCts = new CancellationTokenSource();
-            _logger.LogInformation("采集宿主已启动");
+            _log.Info("采集宿主已启动");
             return Task.CompletedTask;
         }
 
         /// <inheritdoc />
         public async Task StopAsync(CancellationToken cancellationToken)
         {
-            _logger.LogInformation("采集宿主正在停止，等待所有设备采集任务退出...");
+            _log.Info("采集宿主正在停止，等待所有设备采集任务退出...");
 
             // 优雅关闭所有设备
             string[] deviceIds = _devices.Keys.ToArray();
@@ -71,7 +75,7 @@ namespace Acquisition
             // 标记管道写入完成，下游 HistoryWriter 收到 Completion 后退出
             _channel.Writer.Complete();
 
-            _logger.LogInformation("采集宿主已停止");
+            _log.Info("采集宿主已停止");
         }
 
         /// <summary>
@@ -85,7 +89,7 @@ namespace Acquisition
 
             if (_devices.ContainsKey(config.Id))
             {
-                _logger.LogWarning("设备 {DeviceName} (ID:{DeviceId}) 已在运行中，跳过", config.Name, config.Id);
+                _log.Warn("设备 {DeviceName} (ID:{DeviceId}) 已在运行中，跳过", config.Name, config.Id);
                 return;
             }
 
@@ -96,11 +100,8 @@ namespace Acquisition
             // 为每台设备创建独立的取消令牌（链接到宿主令牌）
             var deviceCts = CancellationTokenSource.CreateLinkedTokenSource(_hostCts.Token);
 
-            // 为 DeviceCollector 创建独立日志器
-            ILogger<DeviceCollector> collectorLogger = _loggerFactory.CreateLogger<DeviceCollector>();
-
-            // 实例化采集器
-            var collector = new DeviceCollector(config, driver, _channel.Writer, collectorLogger);
+            // DeviceCollector 自行按类型取子日志器，这里把共享的日志服务传下去即可
+            var collector = new DeviceCollector(config, driver, _channel.Writer, _logFactoryService);
 
             // 启动采集循环 Task
             Task runTask = Task.Run(
@@ -110,7 +111,7 @@ namespace Acquisition
             var state = new DeviceRunState(runTask, deviceCts, driver, config);
             _devices[config.Id] = state;
 
-            _logger.LogInformation("设备 {DeviceName} (ID:{DeviceId}) 采集已启动，周期 {CycleMs}ms",
+            _log.Info("设备 {DeviceName} (ID:{DeviceId}) 采集已启动，周期 {CycleMs}ms",
                 config.Name, config.Id, config.CycleTimeMs);
         }
 
@@ -122,7 +123,7 @@ namespace Acquisition
         {
             if (!_devices.TryRemove(deviceId, out DeviceRunState? state))
             {
-                _logger.LogWarning("设备 {DeviceId} 未找到或已停止", deviceId);
+                _log.Warn("设备 {DeviceId} 未找到或已停止", deviceId);
                 return;
             }
 
@@ -139,14 +140,14 @@ namespace Acquisition
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "设备 {DeviceId} 采集任务退出时发生异常", deviceId);
+                _log.Error(ex, "设备 {DeviceId} 采集任务退出时发生异常", deviceId);
             }
 
             // 释放驱动和取消令牌
             await state.Driver.DisposeAsync().ConfigureAwait(false);
             state.Cts.Dispose();
 
-            _logger.LogInformation("设备 {DeviceId} 已停止并释放资源", deviceId);
+            _log.Info("设备 {DeviceId} 已停止并释放资源", deviceId);
         }
 
         /// <summary>
@@ -156,12 +157,12 @@ namespace Acquisition
         /// <param name="config">更新后的设备配置（DeviceId 不变）</param>
         public async Task ReloadDeviceAsync(DeviceConfig config)
         {
-            _logger.LogInformation("设备 {DeviceName} (ID:{DeviceId}) 热重载中...", config.Name, config.Id);
+            _log.Info("设备 {DeviceName} (ID:{DeviceId}) 热重载中...", config.Name, config.Id);
 
             await StopDeviceAsync(config.Id).ConfigureAwait(false);
             await StartDeviceAsync(config).ConfigureAwait(false);
 
-            _logger.LogInformation("设备 {DeviceName} 热重载完成", config.Name);
+            _log.Info("设备 {DeviceName} 热重载完成", config.Name);
         }
 
         /// <summary>

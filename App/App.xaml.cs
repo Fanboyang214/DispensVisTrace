@@ -2,8 +2,10 @@ using App.Infrastructure;
 using Calibration;
 using Core.Logging;
 using Core.Vision;
+using Microsoft.Extensions.Logging;
 using NLog;
 using NLog.Config;
+using NLog.Extensions.Logging;
 using NLog.Targets;
 using Prism.Ioc;
 using Prism.Modularity;
@@ -33,7 +35,16 @@ namespace App
             "DispensVisTrace",
             "logs");
 
-        private ILogService _log = new LogService(LogService.DefaultLoggerName);
+        /// <summary>
+        /// MEL 日志工厂。在容器建好之前就要能写日志（启动阶段异常、NLog 兜底提示），
+        /// 因此由 ConfigureLogging 静态构建一次，随后注册进容器供全项目共享。
+        /// </summary>
+        private static ILoggerFactory? _loggerFactory;
+
+        /// <summary>
+        /// 日志门面。OnStartup 里从容器取到之后必然非空，用它替换字段可避免各处空值告警。
+        /// </summary>
+        private ILogService _log = null!;
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -78,10 +89,16 @@ namespace App
         {
             containerRegistry.RegisterSingleton<IAlgorithmConfigProvider, JsonAlgorithmConfigProvider>();
 
-            // 日志服务全局单例：LogService 本身无状态，按类型 ForContext<T>() 可得到独立命名的子日志器
-            containerRegistry.RegisterSingleton<ILogService>(() => new LogService(LogService.DefaultLoggerName));
+            // 日志：先登记共享的 MEL 工厂，再让日志门面复用它。
+            // 两者最终都落在 NLog 的同一批 target 上，业务代码用哪套 API 都不影响落盘结果。
+            ILoggerFactory loggerFactory = _loggerFactory
+                ?? throw new InvalidOperationException("日志工厂尚未初始化，ConfigureLogging 必须在 RegisterTypes 之前执行");
 
-           
+            containerRegistry.RegisterInstance<ILoggerFactory>(loggerFactory);
+
+            // 核心层门面：Core 及业务模块依赖的 ILogService，内部转发给上面的同一个工厂
+            containerRegistry.RegisterSingleton<ILogService>(
+                () => new LogService(loggerFactory, LogService.DefaultLoggerName));
         }
 
 
@@ -111,6 +128,13 @@ namespace App
             {
                 ApplyFallbackLogging(ex);
             }
+
+            // 装配 Microsoft.Extensions.Logging：唯一 Provider 是 NLog，
+            // 因此 ILogger<T> 与 Core.Logging.ILogService 写的是同一批文件、同一份规则。
+            // AddNLog 默认直接沿用 LogManager 的当前配置（含 autoReload），
+            // 这里不要调用 SetMinimumLevel/AddFilter：过滤统一交给 NLog.config 的 <rules>，
+            // 现场才有一个可调的开关。
+            _loggerFactory = LoggerFactory.Create(builder => builder.AddNLog());
         }
 
         /// <summary>兜底配置：只有一个同步文件目标，保证任何情况下都有日志可查。</summary>

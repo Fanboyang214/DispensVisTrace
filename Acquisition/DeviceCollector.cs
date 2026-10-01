@@ -1,6 +1,6 @@
-﻿using Core.Interfaces;
+using Core.Interfaces;
+using Core.Logging;
 using Core.Models;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,7 +20,7 @@ namespace Acquisition
         private readonly DeviceConfig _device;
         private readonly IProtocolDriver _driver;
         private readonly ChannelWriter<TagValue> _writer;
-        private readonly ILogger<DeviceCollector> _logger;
+        private readonly ILogService _log;
         private int _consecutiveFailures;
 
         /// <summary>
@@ -29,17 +29,17 @@ namespace Acquisition
         /// <param name="device">设备配置（周期、超时、重试等）</param>
         /// <param name="driver">协议驱动实例（由工厂创建）</param>
         /// <param name="writer">采集数据管道的写入端</param>
-        /// <param name="logger">结构化日志记录器</param>
+        /// <param name="log">日志服务；本类在构造时自行取 <see cref="DeviceCollector"/> 上下文的子日志器</param>
         public DeviceCollector(
             DeviceConfig device,
             IProtocolDriver driver,
             ChannelWriter<TagValue> writer,
-            ILogger<DeviceCollector> logger)
+            ILogService log)
         {
             _device = device ?? throw new ArgumentNullException(nameof(device));
             _driver = driver ?? throw new ArgumentNullException(nameof(driver));
             _writer = writer ?? throw new ArgumentNullException(nameof(writer));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _log = (log ?? throw new ArgumentNullException(nameof(log))).ForContext<DeviceCollector>();
         }
 
         /// <summary>
@@ -48,7 +48,7 @@ namespace Acquisition
         /// <param name="ct">外部取消令牌，用于热重载时优雅停止当前采集任务。</param>
         public async Task RunAsync(CancellationToken ct)
         {
-            _logger.LogInformation("设备 {DeviceName} 采集器启动 (周期 {CycleMs}ms)", _device.Name, _device.CycleTimeMs);
+            _log.Info("设备 {DeviceName} 采集器启动 (周期 {CycleMs}ms)", _device.Name, _device.CycleTimeMs);
 
             // 首次连接（带重试）
             await ConnectWithRetryAsync(ct);
@@ -60,7 +60,7 @@ namespace Acquisition
                 // 连接断开时尝试重连
                 if (!_driver.IsConnected)
                 {
-                    _logger.LogWarning("设备 {DeviceName} 连接已断开，尝试重连", _device.Name);
+                    _log.Warn("设备 {DeviceName} 连接已断开，尝试重连", _device.Name);
                     await ConnectWithRetryAsync(ct);
 
                     if (!_driver.IsConnected)
@@ -88,7 +88,7 @@ namespace Acquisition
                 catch (Exception ex)
                 {
                     _consecutiveFailures++;
-                    _logger.LogError(ex,
+                    _log.Error(ex,
                         "设备 {DeviceName} 采集失败 (连续失败 {Count} 次)",
                         _device.Name, _consecutiveFailures);
 
@@ -100,7 +100,7 @@ namespace Acquisition
                 }
             }
 
-            _logger.LogInformation("设备 {DeviceName} 采集器已停止", _device.Name);
+            _log.Info("设备 {DeviceName} 采集器已停止", _device.Name);
         }
 
         /// <summary>
@@ -116,7 +116,7 @@ namespace Acquisition
             double jitterFactor = 1.0 + (Random.Shared.NextDouble() * 0.4 - 0.2); // [0.8, 1.2]
             double delayMs = Math.Clamp(baseMs * jitterFactor, 100, 60_000);
 
-            _logger.LogDebug("设备 {DeviceName} 退避等待 {DelayMs:F0}ms 后重试", _device.Name, delayMs);
+            _log.Debug("设备 {DeviceName} 退避等待 {DelayMs:F0}ms 后重试", _device.Name, delayMs);
 
             try 
             {
@@ -142,7 +142,7 @@ namespace Acquisition
                 {
                     await _driver.ConnectAsync(ct).ConfigureAwait(false);
                     _consecutiveFailures = 0;
-                    _logger.LogInformation("设备 {DeviceName} 连接成功 (第 {Attempt} 次尝试)", _device.Name, attempt);
+                    _log.Info("设备 {DeviceName} 连接成功 (第 {Attempt} 次尝试)", _device.Name, attempt);
                     return;
                 }
                 catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -152,16 +152,23 @@ namespace Acquisition
                 catch (Exception ex)
                 {
                     bool exceeded = attempt >= _device.RetryCount;
-                    LogLevel level = exceeded ? LogLevel.Error : LogLevel.Warning;
 
-                    _logger.Log(level, ex,
-                        "设备 {DeviceName} 连接失败 (第 {Attempt}/{MaxRetry} 次尝试)",
-                        _device.Name, attempt, _device.RetryCount);
-
+                    // 超过重试上限记 Error，未超过记 Warn（原 MEL 版用变量选级别，这里显式分派，
+                    // 因为 ILogService 的便捷方法按级别固定为 Error/Warn 等独立方法）
                     if (exceeded)
                     {
+                        _log.Error(ex,
+                            "设备 {DeviceName} 连接失败 (第 {Attempt}/{MaxRetry} 次尝试)",
+                            _device.Name, attempt, _device.RetryCount);
+
                         // 超过重试上限后仍然继续尝试，但降低日志级别避免刷屏
-                        _logger.LogError("设备 {DeviceName} 已达最大重试次数 {MaxRetry}，将持续尝试重连", _device.Name, _device.RetryCount);
+                        _log.Error("设备 {DeviceName} 已达最大重试次数 {MaxRetry}，将持续尝试重连", _device.Name, _device.RetryCount);
+                    }
+                    else
+                    {
+                        _log.Warn(ex,
+                            "设备 {DeviceName} 连接失败 (第 {Attempt}/{MaxRetry} 次尝试)",
+                            _device.Name, attempt, _device.RetryCount);
                     }
 
                     await DelayWithBackoffAsync(attempt, ct).ConfigureAwait(false);

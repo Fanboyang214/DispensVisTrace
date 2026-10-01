@@ -8,11 +8,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- AcquisitionHost 实现 IHostedService 需要本包 -->
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.12" />
     <PackageReference Include="MvCameraControl.Net" Version="1.1.0" />
   </ItemGroup>
 
   <ItemGroup>
+    <!-- 注意：本模块日志一律走 Core.Logging.ILogService，不引用任何日志框架/包 -->
     <ProjectReference Include="..\Core\Core.csproj" />
   </ItemGroup>
 

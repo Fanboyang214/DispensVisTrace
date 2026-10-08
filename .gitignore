@@ -361,3 +361,18 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+
+#忽略agent目录
+.dsh/
+.agent/
+.claude/
+.dsh-acl-report/
+.graphflow-cache/
+.trae/
+.graphflow/
+.cursor/
+AGENTS.md
+GEMINI.md
+.windsurfrules
+graphflow-out/

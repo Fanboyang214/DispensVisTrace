@@ -98,116 +98,169 @@
     {
         "id": "motion01",
         "name": "MotionPlatForm",
-        "driverType": "S7",
+        "driverType": "Zmotion",
         "ipAddress": "192.168.1.31",
-        "port": 102,
-        "stationAddress": 1,
-        "cpuSlot": 1,
         "cycleTimeMs": 200,
         "timeoutMs": 3000,
         "retryCount": 3,
-        "description": "运动轴/机器人（含轨迹缓冲下载）",
+        "description": "运动平台（正运动运动控制卡 ZMC/ZBasic；配方程序常驻卡上一次，每颗产品只传位姿；轴0/1/2 = X/Y/Z）",
         "tags": [
             {
                 "id": "motion01-x",
                 "name": "X",
-                "s7Address": "DB1.DBD0",
+                "address": "axis0.dpos",
                 "dataType": "Float32",
                 "access": "Read",
-                "unit": "mm"
+                "unit": "mm",
+                "description": "X 轴指令位置（DPOS，轴0）"
             },
             {
                 "id": "motion01-y",
                 "name": "Y",
-                "s7Address": "DB1.DBD4",
+                "address": "axis1.dpos",
                 "dataType": "Float32",
                 "access": "Read",
-                "unit": "mm"
+                "unit": "mm",
+                "description": "Y 轴指令位置（DPOS，轴1）"
             },
             {
                 "id": "motion01-z",
                 "name": "Z",
-                "s7Address": "DB1.DBD8",
+                "address": "axis2.dpos",
                 "dataType": "Float32",
                 "access": "Read",
-                "unit": "mm"
+                "unit": "mm",
+                "description": "Z 轴指令位置（DPOS，轴2）"
             },
             {
-                "id": "motion01-speed",
-                "name": "Speed",
-                "s7Address": "DB1.DBD12",
+                "id": "motion01-speedx",
+                "name": "SpeedX",
+                "address": "axis0.speed",
                 "dataType": "Float32",
                 "access": "Read",
-                "unit": "mm/s"
+                "unit": "mm/s",
+                "description": "X 轴当前速度（SPEED，轴0）"
             },
             {
-                "id": "motion01-inposition",
-                "name": "InPosition",
-                "s7Address": "DB1.DBX20.0",
-                "dataType": "Bool",
-                "access": "Read"
+                "id": "motion01-speedy",
+                "name": "SpeedY",
+                "address": "axis1.speed",
+                "dataType": "Float32",
+                "access": "Read",
+                "unit": "mm/s",
+                "description": "Y 轴当前速度（SPEED，轴1）"
             },
             {
-                "id": "motion01-homed",
-                "name": "Homed",
-                "s7Address": "DB1.DBX20.1",
+                "id": "motion01-speedz",
+                "name": "SpeedZ",
+                "address": "axis2.speed",
+                "dataType": "Float32",
+                "access": "Read",
+                "unit": "mm/s",
+                "description": "Z 轴当前速度（SPEED，轴2）"
+            },
+            {
+                "id": "motion01-inpositionx",
+                "name": "InPositionX",
+                "address": "axis0.idle",
                 "dataType": "Bool",
-                "access": "Read"
+                "access": "Read",
+                "description": "X 轴静止/运动完成（IDLE=1，轴0）"
+            },
+            {
+                "id": "motion01-inpositiony",
+                "name": "InPositionY",
+                "address": "axis1.idle",
+                "dataType": "Bool",
+                "access": "Read",
+                "description": "Y 轴静止/运动完成（IDLE=1，轴1）"
+            },
+            {
+                "id": "motion01-inpositionz",
+                "name": "InPositionZ",
+                "address": "axis2.idle",
+                "dataType": "Bool",
+                "access": "Read",
+                "description": "Z 轴静止/运动完成（IDLE=1，轴2）"
+            },
+            {
+                "id": "motion01-homedx",
+                "name": "HomedX",
+                "address": "axis0.homed",
+                "dataType": "Bool",
+                "access": "Read",
+                "description": "X 轴回零完成（具体状态位/指令待联调确认，轴0）"
+            },
+            {
+                "id": "motion01-homedy",
+                "name": "HomedY",
+                "address": "axis1.homed",
+                "dataType": "Bool",
+                "access": "Read",
+                "description": "Y 轴回零完成（具体状态位/指令待联调确认，轴1）"
+            },
+            {
+                "id": "motion01-homedz",
+                "name": "HomedZ",
+                "address": "axis2.homed",
+                "dataType": "Bool",
+                "access": "Read",
+                "description": "Z 轴回零完成（具体状态位/指令待联调确认，轴2）"
             },
             {
                 "id": "motion01-targetx",
                 "name": "TargetX",
-                "s7Address": "DB2.DBD0",
+                "address": "axis0.target",
                 "dataType": "Float32",
                 "access": "ReadWrite",
                 "unit": "mm",
-                "description": "jog/回零目标 X"
+                "description": "jog/回零目标 X（写完由 MoveCmd 触发单轴定位，如 MOVEABS）"
             },
             {
                 "id": "motion01-targety",
                 "name": "TargetY",
-                "s7Address": "DB2.DBD4",
+                "address": "axis1.target",
                 "dataType": "Float32",
                 "access": "ReadWrite",
                 "unit": "mm",
-                "description": "jog/回零目标 Y"
+                "description": "jog/回零目标 Y（写完由 MoveCmd 触发单轴定位，如 MOVEABS）"
             },
             {
                 "id": "motion01-movecmd",
                 "name": "MoveCmd",
-                "s7Address": "DB2.DBX0.0",
+                "address": "jog.move",
                 "dataType": "Bool",
                 "access": "ReadWrite",
                 "description": "jog/回零单步触发"
             },
             {
-                "id": "motion01-trajectorybuffer",
-                "name": "TrajectoryBuffer",
-                "s7Address": "DB3",
-                "dataType": "String",
-                "access": "ReadWrite",
-                "description": "整段轨迹缓冲（DispensePlan 序列化）；原类型为 blob，TagDataType 无 blob，暂映射 String"
+                "id": "motion01-programerror",
+                "name": "ProgramError",
+                "address": "program.error",
+                "dataType": "Int32",
+                "access": "Read",
+                "description": "卡上程序错误码（0=正常；9001=阀门时序未实现；9002=变换后越软限位）——非 0 必须停机报警。轨迹不进资源树，装载由 IMotionCardService.DownloadProgram 负责"
             },
             {
-                "id": "motion01-start",
-                "name": "Start",
-                "s7Address": "DB2.DBX0.1",
+                "id": "motion01-programrunning",
+                "name": "ProgramRunning",
+                "address": "program.running",
                 "dataType": "Bool",
-                "access": "ReadWrite",
-                "description": "触发轨迹执行"
+                "access": "Read",
+                "description": "卡上程序正在跑本颗产品（只读镜像；启动由 IMotionCardService.StartProgram 负责）"
             },
             {
-                "id": "motion01-abort",
-                "name": "Abort",
-                "s7Address": "DB2.DBX0.2",
+                "id": "motion01-programdone",
+                "name": "ProgramDone",
+                "address": "program.done",
                 "dataType": "Bool",
-                "access": "ReadWrite",
-                "description": "中断轨迹执行"
+                "access": "Read",
+                "description": "本颗产品已跑完（只读镜像；中断由 IMotionCardService.StopProgram 负责）"
             },
             {
                 "id": "motion01-safetransitheight",
                 "name": "SafeTransitHeight",
-                "s7Address": "DB1.DBD24",
+                "address": "param.safe_transit_height",
                 "dataType": "Float32",
                 "access": "ReadWrite",
                 "unit": "mm",
@@ -216,7 +269,7 @@
             {
                 "id": "motion01-zalarmheight",
                 "name": "ZAlarmHeight",
-                "s7Address": "DB1.DBD28",
+                "address": "param.z_alarm_height",
                 "dataType": "Float32",
                 "access": "ReadWrite",
                 "unit": "mm",
@@ -225,7 +278,7 @@
             {
                 "id": "motion01-cameralensheight",
                 "name": "CameraLensHeight",
-                "s7Address": "DB1.DBD32",
+                "address": "param.camera_lens_height",
                 "dataType": "Float32",
                 "access": "ReadWrite",
                 "unit": "mm",
@@ -234,7 +287,7 @@
             {
                 "id": "motion01-camerafpxmin",
                 "name": "CameraFootprintXMin",
-                "s7Address": "DB1.DBD36",
+                "address": "param.camera_footprint_x_min",
                 "dataType": "Float32",
                 "access": "ReadWrite",
                 "unit": "mm",
@@ -243,7 +296,7 @@
             {
                 "id": "motion01-camerafpxmax",
                 "name": "CameraFootprintXMax",
-                "s7Address": "DB1.DBD40",
+                "address": "param.camera_footprint_x_max",
                 "dataType": "Float32",
                 "access": "ReadWrite",
                 "unit": "mm",
@@ -252,7 +305,7 @@
             {
                 "id": "motion01-camerafpymin",
                 "name": "CameraFootprintYMin",
-                "s7Address": "DB1.DBD44",
+                "address": "param.camera_footprint_y_min",
                 "dataType": "Float32",
                 "access": "ReadWrite",
                 "unit": "mm",
@@ -261,7 +314,7 @@
             {
                 "id": "motion01-camerafpymax",
                 "name": "CameraFootprintYMax",
-                "s7Address": "DB1.DBD48",
+                "address": "param.camera_footprint_y_max",
                 "dataType": "Float32",
                 "access": "ReadWrite",
                 "unit": "mm",
@@ -270,7 +323,7 @@
             {
                 "id": "motion01-safetystatus",
                 "name": "SafetyStatus",
-                "s7Address": "DB1.DBX24.0",
+                "address": "status.safety",
                 "dataType": "String",
                 "access": "Read",
                 "enum": [ "safe", "warning", "critical" ],

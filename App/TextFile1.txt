@@ -1,10 +1,10 @@
-using Core.Calibration;
+﻿using Core.Calibration;
 using Core.Logging;
 using Core.Models;
-using Core.Motion;
 using Core.Vision;
 using HalconDotNet;
-using Motion;
+using netDxf;
+using netDxf.Entities;
 using Prism.Ioc;
 using Prism.Mvvm;
 using System;
@@ -58,31 +58,17 @@ namespace Vision.Halcon
         private bool _subpixelAccuracy;
 
 
-        /// <summary>配方文件路径（Motion 落盘的点胶配方；DXF 由 Plugins.Driver.DXF.DxfParser 在导入期解析）。</summary>
-        private string _recipePath;
-
-        /// <summary>是否把产品位姿叠加到基轨迹上。</summary>
+        private string _cadPath;
+        private string _layerName;
+        private bool _reverseYAxis;
         private bool _transformByPose;
+        private double _pathSimplificationEpsilon;
+        private double _minSegmentLengthMm;
 
-        /// <summary>投影离散采样步长（mm），用于把直线 / 圆弧段展成可视化点列。</summary>
-        private double _sampleStepMm;
+        
 
-        /// <summary>
-        /// 基准轨迹缓存（与产品位姿无关），null 表示尚未加载。
-        /// <para>
-        /// 基准轨迹只加载一次，之后每颗产品都在它的<b>副本</b>上做位姿变换，
-        /// 因此这份基准永远保持原始几何。
-        /// </para>
-        /// </summary>
-        private DispenseProgram? _baseProgram;
-
-        // ========== 持有的领域服务 ==========
-        // 分工：DXF 加载归 Plugins.Driver.DXF（导入源），配方与刚体求解归 Motion，
-        // 本引擎只做编排与投影，自身不解析 DXF、不做位姿求解。
-        // 依赖的是 Core.Motion.IPoseOffsetSolver 这个窄接口，而不是 Motion 里的具体求解器实现。
-
-        /// <summary>工件位姿求解器（由容器注入，默认取 <c>Motion.PoseCompensator</c>）。</summary>
-        private readonly IPoseOffsetSolver _poseSolver;
+        /// <summary>CAD 设计路径缓存（已 Y 轴反转 + 简化，与产品位姿无关），null 表示尚未加载。</summary>
+        private List<PointF>? _designPath;
 
 
 
@@ -93,7 +79,6 @@ namespace Vision.Halcon
         {
             _logService = containerProvider.Resolve<ILogService>();
             _calibrationTransform = containerProvider.Resolve<ICalibrationTransform>();
-            _poseSolver = containerProvider.Resolve<IPoseOffsetSolver>();
 #if DEBUG
             VerifyCadPathMath();
 #endif
@@ -179,20 +164,29 @@ namespace Vision.Halcon
             _metric = hasMetric ? Convert.ToString(metricObj) : "use_polarity";
             _subpixelAccuracy = hasSubpixelAccuracy ? Convert.ToBoolean(subpixelAccuracyObj) : true;
 
-            object recipePathObj = null;
+            object cadPathObj =null;
+            object layerName = null;
+            object reverseYAxisObj = null;
             object transformByPoseObj = null;
-            object sampleStepObj = null;
+            object simplificationEpsilonObj = null;
+            object minSegmentLengthObj = null;
 
-            bool hasRecipePath = _config?.CadImport.TryGetValue("recipePath", out recipePathObj) ?? false;
+            bool hasCadPath = _config?.CadImport.TryGetValue("cadPath", out cadPathObj) ?? false;
+            bool hasLayerName = _config?.CadImport.TryGetValue("layerName", out layerName) ?? false;
+            bool hasReverseYAxis = _config?.CadImport.TryGetValue("reverseYAxis", out reverseYAxisObj) ?? false;
             bool hasTransformByPose = _config?.CadImport.TryGetValue("transformByPose", out transformByPoseObj) ?? false;
-            bool hasSampleStep = _config?.CadImport.TryGetValue("sampleStepMm", out sampleStepObj) ?? false;
+            bool hasSimplificationEpsilon = _config?.CadImport.TryGetValue("pathSimplificationEpsilon", out simplificationEpsilonObj) ?? false;
+            bool hasMinSegmentLength = _config?.CadImport.TryGetValue("minSegmentLengthMm", out minSegmentLengthObj) ?? false;
 
-            _recipePath = hasRecipePath ? Convert.ToString(recipePathObj) ?? string.Empty : string.Empty;
+            _cadPath = hasCadPath ? Convert.ToString(cadPathObj) : string.Empty;
+            _layerName = hasLayerName ? Convert.ToString(layerName) : string.Empty;
+            _reverseYAxis = hasReverseYAxis ? Convert.ToBoolean(reverseYAxisObj) : true;
             _transformByPose = hasTransformByPose ? Convert.ToBoolean(transformByPoseObj) : true;
-            _sampleStepMm = hasSampleStep ? Convert.ToDouble(sampleStepObj) : 0.5;
+            _pathSimplificationEpsilon = hasSimplificationEpsilon ? Convert.ToDouble(simplificationEpsilonObj) : 0.05;
+            _minSegmentLengthMm = hasMinSegmentLength ? Convert.ToDouble(minSegmentLengthObj) : 0.1;
 
-            // 配置可能已经换了配方文件/采样步长，缓存的基准轨迹作废
-            _baseProgram = null;
+            // 配置可能已经换了 CAD 文件/图层/简化阈值，缓存的设计路径作废
+            _designPath = null;
 
             return true;   
         }
@@ -350,92 +344,122 @@ namespace Vision.Halcon
         }
 
 
-        // ========== ③ 基轨迹加载 + 位姿叠加 ==========
-
-        #region 基轨迹
-
+        // ========== ③ 加载 CAD 文件 + 位姿变换 ==========
         /// <summary>
-        /// 取基准轨迹并按产品位姿叠加偏移，得到本次检测的涂胶路径（图像 / 机械坐标，mm）。
+        /// 取设计路径并按产品位姿变换成本次检测的涂胶路径。
         /// <para>
-        /// 边界：DXF 图层过滤（Dispense / Move）、几何解析都在导入插件里完成，
-        /// 配方与位姿补偿在 Motion 里，本视图层只把 <see cref="TrajectorySegment"/> 投影成点列。
-        /// </para>
-        /// <para>
-        /// 基轨迹与产品位姿无关，只在首次调用时加载一次；之后每颗产品都在它的副本上做一次刚体变换，
-        /// 不再重新加载配方，基准配方也不会被写坏。
+        /// DXF 解析、Y 轴反转、简化、去碎线段都与产品位姿无关，只在首次调用时做一次并缓存，
+        /// 之后每颗产品只做一次刚体变换，不再重新解析 CAD。
         /// </para>
         /// </summary>
         public GluePath LoadCadGluePath(ProductPose pose)
         {
-            // 懒加载：基轨迹有问题时在首次调用就暴露，而且加载失败不会把空结果写进缓存
-            DispenseProgram baseProgram = _baseProgram ??= LoadBaseProgram();
+            // 懒加载：CAD 文件有问题时在首次调用就暴露，而且加载失败不会把空结果写进缓存
+            _designPath ??= LoadDesignPath();
 
-            // 位姿补偿必须作用在副本上：变换基准配方本身会让后续每颗产品的偏差累加
-            DispenseProgram current = baseProgram.Clone();
+            // 必须另开一个列表：GluePath 会直接持有它，调用方改了不能污染缓存
+            var points = _transformByPose
+                ? _designPath.Select(p => TransformByPose(p, pose)).ToList()
+                : new List<PointF>(_designPath);
 
-            if (_transformByPose)
+            return new GluePath(points, pose.Score);
+        }
+
+        /// <summary>解析胶路图层并简化，得到与产品位姿无关的设计路径（CAD 坐标系，mm）。</summary>
+        private List<PointF> LoadDesignPath()
+        {
+            if (string.IsNullOrWhiteSpace(_cadPath))
             {
-                // 只依赖 Core.Motion 的窄接口：求解器由容器注入，换实现不用改这里
-                if (!_poseSolver.TrySolve(out PoseOffset offset, out string offsetErr))
+                _logService.Log(LogLevel.Warn, "未配置 CAD 胶路文件路径（cadImport.cadPath）");
+                throw new InvalidOperationException("未配置 CAD 胶路文件路径（cadImport.cadPath）");
+
+            }
+
+            // 使用 netDxf 解析 DXF 文件
+            var dxf = DxfDocument.Load(_cadPath);
+
+            var cadPoints = new List<PointF>();
+
+            // 遍历胶路图层中的实体：Line 取两端点，Arc/Spline 按密度离散，Polyline 直接取顶点
+            foreach (var entity in dxf.Entities.All.Where(e => e.Layer.Name == _layerName))
+            {
+                switch (entity)
                 {
-                    _logService.Log(LogLevel.Warn, $"工件位姿求解失败，回退为基准轨迹：{offsetErr}");
-                }
-                else
-                {
-                    // 推荐产线方案不用这条路径（基准轨迹预下载到运动卡，卡内实时变换），
-                    // 这里是为预览 / 无卡调试准备的上位机预变换。
-                    current.ApplyPoseOffset(offset.DeltaX, offset.DeltaY, offset.DeltaTheta, offset.RotCenter);
+                    case Line line:
+                        cadPoints.Add(ToPoint(line.StartPoint));
+                        cadPoints.Add(ToPoint(line.EndPoint));
+                        break;
+                    case Arc arc:
+                        // DXF 圆弧按逆时针从 StartAngle 扫到 EndAngle，跨 0° 时 EndAngle 会小于 StartAngle
+                        double sweepDeg = arc.EndAngle - arc.StartAngle;
+                        if (sweepDeg <= 0) sweepDeg += 360;
+
+                        cadPoints.AddRange(arc.PolygonalVertexes(
+                            SampleCount(arc.Radius * sweepDeg * Math.PI / 180)).Select(v => ToPoint(v, arc.Center)));
+                        break;
+                    case Polyline2D polyline:
+                        // LWPOLYLINE 的顶点本身就是路径点，无需再离散
+                        cadPoints.AddRange(polyline.Vertexes.Select(v => ToPoint(v.Position)));
+                        break;
+                    case Spline spline:
+                        // 控制多边形长度是样条长度的上界，用它估密度只会略密，随后由 SimplifyPath 收敛
+                        cadPoints.AddRange(spline.PolygonalVertexes(
+                            SampleCount(LengthOf(spline.ControlPoints.Select(ToPoint)))).Select(ToPoint));
+                        break;
                 }
             }
 
-            return ToGluePath(current, pose.Score);
+            if (cadPoints.Count == 0)
+            {
+                _logService.Log(LogLevel.Warn, $"CAD 胶路为空：{_cadPath} 的图层 {_layerName} 未匹配到可用实体");
+                return cadPoints;
+            }
+
+            // CAD 坐标系 Y 轴反转（CAD Y↑ vs 图像 Y↓）
+            if (_reverseYAxis)
+                cadPoints = cadPoints.Select(p => new PointF(p.X, -p.Y)).ToList();
+
+            // 简化和去碎线段都放在位姿变换之前：epsilon 与 minSegmentLengthMm 本来就是 CAD 的 mm 口径，
+            // 而位姿变换只有旋转 + 平移（等距变换），变换前后做结果一致，所以能连结果一起缓存
+            cadPoints = SimplifyPath(cadPoints, _pathSimplificationEpsilon);
+            cadPoints = FilterShortSegments(cadPoints, _minSegmentLengthMm);
+
+            return cadPoints;
         }
+
+
+        /// <summary>曲线离散密度（点/mm）。</summary>
+        private const int SamplesPerMm = 5;
+
+        /// <summary>按曲线长度估算离散点数，限制在 [8, 2048] 之间。</summary>
+        private static int SampleCount(double lengthMm) =>
+            Math.Clamp((int)Math.Ceiling(lengthMm * SamplesPerMm), 8, 2048);
+
+        private static PointF ToPoint(Vector2 v) => new PointF((float)v.X, (float)v.Y);
+
+        private static PointF ToPoint(Vector3 v) => new PointF((float)v.X, (float)v.Y);
 
         /// <summary>
-        /// 加载基准轨迹（与产品位姿无关）。
-        /// <para>
-        /// 需要配方文件路径（<c>cadImport.recipePath</c>）。配方里的几何是导入期由
-        /// <c>Plugins.Driver.DXF.DxfParser</c> 解析并随配方落盘的，本视图层不解析 DXF，
-        /// 因此视觉模块不需要依赖插件程序集。
-        /// </para>
+        /// 把以 <paramref name="offset"/> 为原点的局部坐标点换算到世界坐标。
+        /// netDxf 的 <c>Arc.PolygonalVertexes</c> 返回的是圆心坐标系下的点，必须加回圆心。
         /// </summary>
-        private DispenseProgram LoadBaseProgram()
+        private static PointF ToPoint(Vector2 v, Vector3 offset) =>
+            new PointF((float)(v.X + offset.X), (float)(v.Y + offset.Y));
+
+        /// <summary>折线总长（mm）。</summary>
+        private static double LengthOf(IEnumerable<PointF> points)
         {
-            if (string.IsNullOrWhiteSpace(_recipePath))
+            var list = points as IList<PointF> ?? points.ToList();
+
+            double length = 0;
+            for (int i = 1; i < list.Count; i++)
             {
-                _logService.Log(LogLevel.Warn, "未配置配方文件路径（cadImport.recipePath）");
-                throw new InvalidOperationException("未配置配方文件路径（cadImport.recipePath）");
+                float dx = list[i].X - list[i - 1].X;
+                float dy = list[i].Y - list[i - 1].Y;
+                length += Math.Sqrt(dx * dx + dy * dy);
             }
-
-            // 配方几何由 Plugins.Driver.DXF.DxfParser 在导入期解析并随配方落盘，本视图层不解析 DXF
-            var program = new DispenseProgram();
-            if (!program.LoadRecipe(_recipePath))
-            {
-                _logService.Log(LogLevel.Warn, $"配方加载失败：{_recipePath}");
-                throw new InvalidOperationException($"配方加载失败：{_recipePath}");
-            }
-
-            return program;
+            return length;
         }
-
-        /// <summary>
-        /// 把轨迹段投影成可视化点列。
-        /// <para>
-        /// 待实现（占位）：直线段取两端点即可；圆弧段按 <see cref="_sampleStepMm"/> 或固定角度步长，
-        /// 用 <see cref="TrajectorySegment.GetPointByDist"/> 取点，避免把圆弧退化成单一弦。
-        /// 投影与位姿变换无关，所以变换前后做结果一致。
-        /// </para>
-        /// </summary>
-        private GluePath ToGluePath(DispenseProgram program, double confidence)
-        {
-            throw new NotImplementedException(
-                "HalconLocateEngine.ToGluePath 待实现：需把 TrajectorySegment 投影为 GluePath 点列。");
-        }
-
-        /// <summary>基准轨迹（只读）。运动模块需要整套轨迹 / 工艺 / IO 时取这里，不必经 <see cref="GluePath"/> 往返。</summary>
-        public DispenseProgram? BaseProgram => _baseProgram;
-
-        #endregion
 
         /// <summary>把 CAD 路径点按产品位姿旋转并平移到图像坐标。</summary>
         // ponytail: 只做旋转 + 平移。ProductPose.Scale 目前无人赋值（默认 1），
@@ -568,27 +592,12 @@ namespace Vision.Halcon
                 new List<PointF> { new(0, 0), new(0.05f, 0), new(1, 0) }, minSegmentMm: 0.1);
             Debug.Assert(filtered.Count == 2, "FilterShortSegments 未过滤碎线段");
 
-            // 位姿补偿必须作用在配方副本上：_baseProgram 是基准轨迹，被写坏会让后续所有产品跟着偏移。
-            // 这里直接验证 DispenseProgram.Clone 的深拷贝语义（IO 触发列表也必须独立）。
-            var baseSeg = new TrajectorySegment
-            {
-                SegType = SegmentType.Line,
-                StartPt = new Point3D(1, 0, 0),
-                EndPt = new Point3D(2, 0, 0)
-            };
-            baseSeg.IoTriggers.Add(new IoTrigger { DistanceOnSegment = 0.2, Action = IoActionType.ValveOn });
-
-            var baseProgram = new DispenseProgram("self-check");
-            baseProgram.Segments.Add(baseSeg);
-
-            DispenseProgram copy = baseProgram.Clone();
-            copy.ApplyPoseOffset(10, 20, Math.PI / 2, new Point3D(0, 0, 0));
-
-            Debug.Assert(Math.Abs(baseProgram.Segments[0].StartPt.X - 1) < 0.001
-                      && Math.Abs(baseProgram.Segments[0].StartPt.Y) < 0.001,
-                "位姿补偿污染了基准配方：Clone 不是深拷贝");
-            Debug.Assert(!ReferenceEquals(baseProgram.Segments[0].IoTriggers, copy.Segments[0].IoTriggers),
-                "Clone 未复制 IO 触发列表，副本与基准共享同一份触发数据");
+            // 钉住 netDxf 的坐标系假设：Arc.PolygonalVertexes 返回的是圆心坐标系下的点，
+            // 必须加回圆心。若哪天 netDxf 改成返回世界坐标，这里会立刻失败。
+            var arc = new Arc(new Vector2(50, 0), 10, 0, 90);
+            var arcStart = ToPoint(arc.PolygonalVertexes(4)[0], arc.Center);
+            Debug.Assert(Math.Abs(arcStart.X - 60) < 0.001 && Math.Abs(arcStart.Y) < 0.001,
+                "圆弧顶点未换算到世界坐标");
         }
 #endif
 

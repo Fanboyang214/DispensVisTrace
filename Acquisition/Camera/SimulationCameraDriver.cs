@@ -1,6 +1,6 @@
 using Core.Acquisition;
 
-namespace Acquisition;
+namespace Acquisition.Camera;
 
 /// <summary>
 /// 仿真相机：没有真实硬件时用来跑通采集 → 落盘 → 回报的整条链路。

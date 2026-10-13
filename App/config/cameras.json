@@ -1,0 +1,36 @@
+{
+  "imageRootDirectory": "D:\\DispensVisTrace\\images",
+  "autoStart": true,
+  "cameras": [
+    {
+      "cameraName": "Camera01",
+      "role": "Locate",
+      "sdkType": "Simulation",
+      "serialNumber": "SIM-CAM01",
+      "triggerSource": "Hardware",
+      "exposureTimeUs": 50,
+      "gainDb": 0,
+      "width": 2448,
+      "height": 2048,
+      "frameRate": null,
+      "mqtt": {
+        "endpoint": "mqtt://192.168.1.40:1883"
+      }
+    },
+    {
+      "cameraName": "Camera02",
+      "role": "Inspect",
+      "sdkType": "Simulation",
+      "serialNumber": "SIM-CAM02",
+      "triggerSource": "Hardware",
+      "exposureTimeUs": 50,
+      "gainDb": 0,
+      "width": 2448,
+      "height": 2048,
+      "frameRate": null,
+      "mqtt": {
+        "endpoint": "mqtt://192.168.1.41:1883"
+      }
+    }
+  ]
+}

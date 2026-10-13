@@ -1,0 +1,461 @@
+<UserControl x:Class="Vision.Halcon.View.VisionView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:halcon="clr-namespace:HalconDotNet;assembly=halcondotnet"
+             mc:Ignorable="d"
+             d:DesignHeight="900" d:DesignWidth="1600"
+             Background="#121518"
+             FontFamily="Microsoft YaHei UI, Segoe UI"
+             FontSize="13"
+             TextOptions.TextFormattingMode="Display"
+             UseLayoutRounding="True">
+
+    <!-- 三块画面（定位 / 检测 / 点胶）等宽并列：上半是 2448×2048 的实时图像，下半是各自的信息。
+         图像由 code-behind 送进各自的 HALCON 窗口（像素走 HALCON 原生缓冲，不走绑定）。 -->
+    <UserControl.Resources>
+        <!-- 颜色 -->
+        <SolidColorBrush x:Key="CardBrush" Color="#1B2025" />
+        <SolidColorBrush x:Key="CardBorderBrush" Color="#2A323A" />
+        <SolidColorBrush x:Key="HeaderBrush" Color="#20272E" />
+        <SolidColorBrush x:Key="InfoBrush" Color="#171B1F" />
+        <SolidColorBrush x:Key="ViewerBrush" Color="#0B0D0F" />
+        <SolidColorBrush x:Key="ValueBrush" Color="#E6EDF3" />
+        <SolidColorBrush x:Key="MutedBrush" Color="#8B98A5" />
+        <SolidColorBrush x:Key="ChipBrush" Color="#252D35" />
+        <SolidColorBrush x:Key="OkBrush" Color="#4ADE80" />
+        <SolidColorBrush x:Key="NgBrush" Color="#F87171" />
+        <SolidColorBrush x:Key="LocateAccentBrush" Color="#22D3EE" />
+        <SolidColorBrush x:Key="InspectAccentBrush" Color="#34D399" />
+        <SolidColorBrush x:Key="DispenseAccentBrush" Color="#FBBF24" />
+
+        <!-- 卡片：三栏共用同一套外观 -->
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource CardBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+        </Style>
+
+        <Style x:Key="PanelHeader" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource HeaderBrush}" />
+            <Setter Property="CornerRadius" Value="7,7,0,0" />
+            <Setter Property="Padding" Value="12,8" />
+        </Style>
+
+        <Style x:Key="RolePill" TargetType="Border">
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="9,2" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- 文本 -->
+        <Style x:Key="Caption" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+
+        <Style x:Key="Value" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource ValueBrush}" />
+            <Setter Property="FontFamily" Value="Consolas, Microsoft YaHei UI" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <Style x:Key="MetricLabel" TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+            <Setter Property="Margin" Value="0,0,0,3" />
+        </Style>
+
+        <Style x:Key="MetricValue" TargetType="TextBlock" BasedOn="{StaticResource Value}">
+            <Setter Property="FontSize" Value="19" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <!-- 状态小标签（等待图像 / 已定位 / 检测完成 …） -->
+        <Style x:Key="ChipBorder" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource ChipBrush}" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="8,2" />
+        </Style>
+
+        <Style x:Key="ChipText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#9AA7B4" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+
+        <!-- 图像区：等比缩放到框内，不拉伸 2448×2048 的像素 -->
+        <Style x:Key="ImageViewer" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource ViewerBrush}" />
+            <Setter Property="BorderBrush" Value="#0A0C0E" />
+            <Setter Property="BorderThickness" Value="0,1,0,1" />
+        </Style>
+
+        <!-- 信息区：三栏固定同高，图像区高度因此对齐 -->
+        <Style x:Key="InfoArea" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource InfoBrush}" />
+            <Setter Property="CornerRadius" Value="0,0,7,7" />
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="Height" Value="150" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="10">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ═════════════ 1 / 定位 LOCATE ═════════════ -->
+        <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,5,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Style="{StaticResource PanelHeader}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Style="{StaticResource RolePill}"
+                                Background="{StaticResource LocateAccentBrush}">
+                            <TextBlock Text="定位" FontWeight="Bold" FontSize="12" Foreground="#06262C" />
+                        </Border>
+
+                        <TextBlock Grid.Column="1" Text="LOCATE · 位姿" Margin="9,0,0,0"
+                                   VerticalAlignment="Center" FontSize="11"
+                                   Foreground="#7E8B98" />
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Locate.CameraName}" FontSize="11"
+                                       Foreground="#C3CFD9" VerticalAlignment="Center" />
+                            <Border Style="{StaticResource ChipBorder}" Margin="8,0,0,0">
+                                <TextBlock Text="2448 × 2048" Style="{StaticResource ChipText}" />
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="1" Style="{StaticResource ImageViewer}">
+                    <halcon:HSmartWindowControlWPF x:Name="LocateWindow" />
+                </Border>
+
+                <Border Grid.Row="2" Style="{StaticResource InfoArea}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!-- 产品号 + 状态 -->
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="产品号" FontSize="20"  Style="{StaticResource Caption}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding Locate.ProductId, TargetNullValue=—}"
+                                       Style="{StaticResource Value}" FontSize="15"
+                                       Margin="10,0,8,0" VerticalAlignment="Center" />
+
+                            <Border Grid.Column="2" VerticalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border" BasedOn="{StaticResource ChipBorder}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Locate.HasPose}" Value="True">
+                                                <Setter Property="Background" Value="#123B26" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="{Binding Locate.StatusText}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource ChipText}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Locate.HasPose}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource OkBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+                        </Grid>
+
+                        <!-- 位姿：行 / 列 / 偏转角 / 匹配分 -->
+                        <UniformGrid Grid.Row="1" Columns="4" VerticalAlignment="Bottom" Margin="0,10,0,0">
+                            <StackPanel>
+                                <TextBlock Text="行 R" Style="{StaticResource MetricLabel}" />
+                                <TextBlock Text="{Binding Locate.Row, StringFormat={}{0:F2}, TargetNullValue=—}"
+                                           Style="{StaticResource MetricValue}" />
+                            </StackPanel>
+                            <StackPanel Margin="8,0,0,0">
+                                <TextBlock Text="列 C" Style="{StaticResource MetricLabel}" />
+                                <TextBlock Text="{Binding Locate.Column, StringFormat={}{0:F2}, TargetNullValue=—}"
+                                           Style="{StaticResource MetricValue}" />
+                            </StackPanel>
+                            <StackPanel Margin="8,0,0,0">
+                                <TextBlock Text="偏转 θ" Style="{StaticResource MetricLabel}" />
+                                <TextBlock Text="{Binding Locate.AngleDeg, StringFormat={}{0:F2}°, TargetNullValue=—}"
+                                           Style="{StaticResource MetricValue}" />
+                            </StackPanel>
+                            <StackPanel Margin="8,0,0,0">
+                                <TextBlock Text="匹配分" Style="{StaticResource MetricLabel}" />
+                                <TextBlock Text="{Binding Locate.Score, StringFormat={}{0:F3}, TargetNullValue=—}"
+                                           Style="{StaticResource MetricValue}" />
+                            </StackPanel>
+                        </UniformGrid>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- ═════════════ 2 / 检测 INSPECT ═════════════ -->
+        <Border Grid.Column="1" Style="{StaticResource Card}" Margin="5,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Style="{StaticResource PanelHeader}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Style="{StaticResource RolePill}"
+                                Background="{StaticResource InspectAccentBrush}">
+                            <TextBlock Text="检测" FontWeight="Bold" FontSize="12" Foreground="#06291B" />
+                        </Border>
+
+                        <TextBlock Grid.Column="1" Text="INSPECT · 判定" Margin="9,0,0,0"
+                                   VerticalAlignment="Center" FontSize="11"
+                                   Foreground="#7E8B98" />
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Inspect.CameraName}" FontSize="11"
+                                       Foreground="#C3CFD9" VerticalAlignment="Center" />
+                            <Border Style="{StaticResource ChipBorder}" Margin="8,0,0,0">
+                                <TextBlock Text="2448 × 2048" Style="{StaticResource ChipText}" />
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="1" Style="{StaticResource ImageViewer}">
+                    <halcon:HSmartWindowControlWPF x:Name="InspectWindow" />
+                </Border>
+
+                <Border Grid.Row="2" Style="{StaticResource InfoArea}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!-- 产品号 + 状态 -->
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="产品号" FontSize="20" Style="{StaticResource Caption}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding Inspect.ProductId, TargetNullValue=—}"
+                                       Style="{StaticResource Value}" FontSize="15"
+                                       Margin="10,0,8,0" VerticalAlignment="Center" />
+
+                            <Border Grid.Column="2" Style="{StaticResource ChipBorder}" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Inspect.StatusText}" Style="{StaticResource ChipText}" />
+                            </Border>
+                        </Grid>
+
+                        <!-- OK / NG + 置信度 -->
+                        <Grid Grid.Row="1" VerticalAlignment="Bottom" Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Height="54" CornerRadius="6">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{StaticResource ChipBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Inspect.Verdict}" Value="Ok">
+                                                <Setter Property="Background" Value="#14351F" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Inspect.Verdict}" Value="Ng">
+                                                <Setter Property="Background" Value="#3A1619" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+
+                                <TextBlock Text="{Binding Inspect.VerdictText}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           FontSize="26" FontWeight="Bold">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Inspect.Verdict}" Value="Ok">
+                                                    <Setter Property="Foreground" Value="{StaticResource OkBrush}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Inspect.Verdict}" Value="Ng">
+                                                    <Setter Property="Foreground" Value="{StaticResource NgBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+
+                            <StackPanel Grid.Column="1" Margin="12,0,0,0" MinWidth="88" VerticalAlignment="Center">
+                                <TextBlock Text="置信度" Style="{StaticResource MetricLabel}" />
+                                <TextBlock Text="{Binding Inspect.Confidence, StringFormat={}{0:F3}, TargetNullValue=—}"
+                                           Style="{StaticResource MetricValue}" />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- ═════════════ 3 / 点胶 DISPENSE ═════════════ -->
+        <Border Grid.Column="2" Style="{StaticResource Card}" Margin="5,0,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Style="{StaticResource PanelHeader}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0" Style="{StaticResource RolePill}"
+                                Background="{StaticResource DispenseAccentBrush}">
+                            <TextBlock Text="点胶" FontWeight="Bold" FontSize="12" Foreground="#2B1D02" />
+                        </Border>
+
+                        <TextBlock Grid.Column="1" Text="DISPENSE · 轴位置" Margin="9,0,0,0"
+                                   VerticalAlignment="Center" FontSize="11"
+                                   Foreground="#7E8B98" />
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Dispense.CameraName}" FontSize="11"
+                                       Foreground="#C3CFD9" VerticalAlignment="Center" />
+                            <Border Style="{StaticResource ChipBorder}" Margin="8,0,0,0">
+                                <TextBlock Text="2448 × 2048" Style="{StaticResource ChipText}" />
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="1" Style="{StaticResource ImageViewer}">
+                    <halcon:HSmartWindowControlWPF x:Name="DispenseWindow" />
+                </Border>
+
+                <Border Grid.Row="2" Style="{StaticResource InfoArea}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!-- 产品号 + 轴状态 -->
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="产品号" FontSize="20" Style="{StaticResource Caption}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="1" Text="{Binding Dispense.ProductId, TargetNullValue=—}"
+                                       Style="{StaticResource Value}" FontSize="15"
+                                       Margin="10,0,8,0" VerticalAlignment="Center" />
+
+                            <Border Grid.Column="2" VerticalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border" BasedOn="{StaticResource ChipBorder}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Dispense.IsConnected}" Value="True">
+                                                <Setter Property="Background" Value="#123B26" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="{Binding Dispense.ConnectionText}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource ChipText}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Dispense.IsConnected}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource OkBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+                        </Grid>
+
+                        <!-- 实时轴位置：X / Y / Z（DPOS，mm） -->
+                        <UniformGrid Grid.Row="1" Columns="3" VerticalAlignment="Bottom" Margin="0,10,0,0">
+                            <StackPanel>
+                                <TextBlock Text="X 轴" Style="{StaticResource MetricLabel}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Dispense.X, StringFormat={}{0:F3}, TargetNullValue=—}"
+                                               Style="{StaticResource MetricValue}" />
+                                    <TextBlock Text="mm" Style="{StaticResource Caption}" Margin="4,0,0,4"
+                                               VerticalAlignment="Bottom" />
+                                </StackPanel>
+                            </StackPanel>
+                            <StackPanel Margin="8,0,0,0">
+                                <TextBlock Text="Y 轴" Style="{StaticResource MetricLabel}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Dispense.Y, StringFormat={}{0:F3}, TargetNullValue=—}"
+                                               Style="{StaticResource MetricValue}" />
+                                    <TextBlock Text="mm" Style="{StaticResource Caption}" Margin="4,0,0,4"
+                                               VerticalAlignment="Bottom" />
+                                </StackPanel>
+                            </StackPanel>
+                            <StackPanel Margin="8,0,0,0">
+                                <TextBlock Text="Z 轴" Style="{StaticResource MetricLabel}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Dispense.Z, StringFormat={}{0:F3}, TargetNullValue=—}"
+                                               Style="{StaticResource MetricValue}" />
+                                    <TextBlock Text="mm" Style="{StaticResource Caption}" Margin="4,0,0,4"
+                                               VerticalAlignment="Bottom" />
+                                </StackPanel>
+                            </StackPanel>
+                        </UniformGrid>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

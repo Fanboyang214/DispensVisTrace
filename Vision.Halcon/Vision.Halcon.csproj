@@ -1,14 +1,30 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <!-- HALCON 只提供 bin\dotnet35 的 .NET Framework 版 halcondotnet.dll，它引用 System.Drawing 与
+         System.Windows.Forms；这两个（含 System.Drawing.Common）在 WindowsDesktop 引用包里标着
+         Profile="WindowsForms"，纯 WPF 工程的引用集里没有，XAML 编译 VisionView.xaml 时会报
+         MC1000「Could not find assembly 'System.Drawing.Common'」。开 UseWindowsForms 只是把
+         这批引用包补进引用集，本模块代码本身不用 WinForms。 -->
+    <UseWindowsForms>true</UseWindowsForms>
     <Platforms>AnyCPU;x64</Platforms>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Prism.Core" Version="8.1.97" />
+    <PackageReference Include="HandyControl" Version="3.5.1" />
+    <!-- VisionHalconModule 把 View 注册到区域要用 Prism.Wpf（传递引入 Prism.Core） -->
+    <PackageReference Include="Prism.Wpf" Version="8.1.97" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 开 UseWindowsForms 只为补引用集；它的隐式 using 必须去掉，否则 UserControl/Point/Color
+         这些会和 WPF 同名类型撞车（CS0104 “UserControl 是不明确的引用”） -->
+    <Using Remove="System.Drawing" />
+    <Using Remove="System.Windows.Forms" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,6 +35,10 @@
   <ItemGroup>
     <Reference Include="halcondotnet">
       <HintPath>..\..\..\..\ProgramFiles\MVTec\HALCON-24.11-Progress-Steady\bin\dotnet35\halcondotnet.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="hdevenginedotnet">
+      <HintPath>..\..\..\..\ProgramFiles\MVTec\HALCON-24.11-Progress-Steady\bin\dotnet20\hdevenginedotnet.dll</HintPath>
     </Reference>
   </ItemGroup>
 

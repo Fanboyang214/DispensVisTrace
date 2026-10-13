@@ -1,12 +1,17 @@
+using Acquisition;
 using App.Infrastructure;
 using Calibration;
+using Core.Acquisition;
+using Core.Bridge;
 using Core.Logging;
 using Core.Vision;
 using Microsoft.Extensions.Logging;
+using Motion;
 using NLog;
 using NLog.Config;
 using NLog.Extensions.Logging;
 using NLog.Targets;
+using Plugins.Drivers.Mqtt;
 using Prism.Ioc;
 using Prism.Modularity;
 using Prism.Unity;
@@ -16,6 +21,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
+using Vision.Halcon;
 
 namespace App
 {
@@ -99,6 +105,26 @@ namespace App
             // 核心层门面：Core 及业务模块依赖的 ILogService，内部转发给上面的同一个工厂
             containerRegistry.RegisterSingleton<ILogService>(
                 () => new LogService(loggerFactory, LogService.DefaultLoggerName));
+
+            // 采集 ↔ 视觉之间的"图像就绪"总线：采集侧发布路径与元数据，视觉侧订阅后自己去共享目录取图。
+            // 两侧只依赖 Core.Bridge 的两个窄接口，互不认识；要跨进程时（相机在另一台机器 / 另一个进程）
+            // 在这里换成 MQTT / 资源树实现即可，两侧代码不用动。
+            //var imageReadyBus = new InProcessImageReadyBus(
+            //    log: new LogService(loggerFactory, LogService.DefaultLoggerName));
+
+            //containerRegistry.RegisterInstance<IImageReadyPublisher>(imageReadyBus);
+            //containerRegistry.RegisterInstance<IImageReadySubscriber>(imageReadyBus);
+
+            containerRegistry.RegisterSingleton<InProcessImageReadyBus>();
+            containerRegistry.Register<IImageReadyPublisher, InProcessImageReadyBus>();
+            containerRegistry.Register<IImageReadySubscriber, InProcessImageReadyBus>();
+
+            // 设备侧 MQTT：相机作为资源树里的一台 MQTT 设备上报自己的数据点。
+            // 实现（MQTTnet）在 Plugins 层，采集模块只依赖 Core 的 IDeviceDriver 契约——
+            // 换协议只换这个工厂，Acquisition 一行不用动。
+            containerRegistry.RegisterInstance<Func<CameraSetup, ILogService, IDeviceDriver>>(
+                MqttDeviceDriverFactory.Create);
+
         }
 
 
@@ -213,6 +239,16 @@ namespace App
         protected override void ConfigureModuleCatalog(IModuleCatalog moduleCatalog)
         {
             moduleCatalog.AddModule<CalibrationModule>();
+
+            // 相机通道：条码发生器 + 相机运行时 + 帧→视觉的桥（配置在 config/cameras.json）
+            moduleCatalog.AddModule<AcquisitionModule>();
+
+            // 视觉引擎：定位（ILocateEngine）与检测（IInspectEngine）——相机通道按角色取用
+            moduleCatalog.AddModule<VisionHalconModule>();
+
+            // 运动页（单轴参数 / 回零 / 调试 / 前瞻）：只登记 ViewModel 与导航；
+            // 运动卡本身由组合根在确认 endpoint 后注册（没注册时页面显示“未连接”）
+            moduleCatalog.AddModule<MotionModule>();
         }
     }
 }

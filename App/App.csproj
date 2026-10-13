@@ -11,8 +11,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- 主题与控件库：App.xaml 的 <hc:Theme/> 与模块 View 里的 hc: 控件都由它提供 -->
+    <PackageReference Include="HandyControl" Version="3.5.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="6.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+    <!-- 版本下限由 OPC UA 那条链定：App -> Vision.Halcon -> Motion -> Plugins -> OPCFoundation...Opc.Ua
+         要求 Microsoft.Extensions.Logging >= 10.0.8。钉 8.0.0 会触发 NU1605 包降级错误。
+         NLog.Extensions.Logging 6.2.1 对 net8.0 只要求 >= 8.0.0，所以升到 10.0.8 不冲突 -->
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.8" />
     <PackageReference Include="NLog" Version="6.2.1" />
     <!-- 桥接：把 Microsoft.Extensions.Logging 的日志写进 NLog.config 定义的目标，
          使 ILogger<T> 与 Core.Logging.ILogService 汇合到同一批日志文件。
@@ -22,13 +27,32 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Acquisition\Acquisition.csproj" />
     <ProjectReference Include="..\Calibration\Calibration.csproj" />
     <ProjectReference Include="..\Core\Core.csproj" />
+    <!-- 设备侧 MQTT 驱动（Plugins.Drivers.Mqtt）：组合根把它注册成 IDeviceDriver 工厂注入采集模块。
+         显式引用而不是靠 Vision.Halcon → Motion → Plugins 传递，App 自己用到哪个包就写哪个 -->
+    <ProjectReference Include="..\Plugins\Plugins.csproj" />
+    <!-- 运动模块（MotionModule / 运动页 ViewModel）：App 组合根要登记它，视图才能拿到运动页 VM -->
+    <ProjectReference Include="..\Motion\Motion.csproj" />
+    <!-- 视觉引擎（ILocateEngine / IInspectEngine）由 Vision 模块注册；相机通道按角色取它们 -->
+    <ProjectReference Include="..\Vision.Halcon\Vision.Halcon.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- NLog 在 exe 同目录按文件名自动装载 NLog.config -->
     <None Update="NLog.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+
+    <!-- 相机拓扑：采集模块按 exe 同目录 config/cameras.json 装配（没有这个文件 = 本机不接相机） -->
+    <None Update="config\cameras.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+
+    <!-- 算法配方：视觉引擎初始化与 cam/locate-conf、cam/inspect-conf 的初值都按它读
+         （以前没拷到输出目录，运行时根本读不到 = 引擎参数全走默认值） -->
+    <None Update="config\algorithm-profiles.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

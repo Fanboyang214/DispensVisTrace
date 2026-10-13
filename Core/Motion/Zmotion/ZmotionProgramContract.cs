@@ -1,12 +1,12 @@
-namespace Motion.Zmotion
+namespace Core.Zmotion
 {
     /// <summary>
     /// 上位机与卡上程序之间的<b>数据契约</b>：VR 通道号与轨迹表布局。
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 上位机侧（<see cref="ZmotionCardService"/>）按这里的编号写 VR，
-    /// 卡上程序（<see cref="ZmotionProgramWriter"/> 生成的 ZBasic）按同一编号读。
+    /// 上位机侧（<c>Motion.Zmotion.ZmotionCardService</c>）按这里的编号写 VR，
+    /// 卡上程序（<c>Motion.Zmotion.ZmotionProgramWriter</c> 生成的 ZBasic）按同一编号读。
     /// 契约写成代码、两边都引用它，是为了不让"写的人"和"读的人"各记一套编号而漂移。
     /// </para>
     /// <para>
@@ -15,7 +15,7 @@ namespace Motion.Zmotion
     /// <list type="bullet">
     /// <item>VR / TABLE 的上限，以及 PC 侧读写函数名（<c>ZAux_Direct_*</c> 家族）</item>
     /// <item>程序下载 / 运行 / 停止的函数名（官方文章《RtBasic文件下载与连续轨迹加工的Python+Qt开发》）</item>
-    /// <item>位置同步输出 PSO / <c>HW_PSWITCH</c> 的参数序（官方文章《精密点胶的PSO应用》）</item>
+    /// <item>位置同步输出 PSO / <c>HW_PSWITCH2</c> 的参数序（官方文章《精密点胶的PSO应用》）</item>
     /// <item>连续插补（缓冲）指令名，以及 <c>UNITS</c>、轴映射 <c>BASE</c> 的写法</item>
     /// </list>
     /// </para>
@@ -23,32 +23,37 @@ namespace Motion.Zmotion
     public static class ZmotionProgramContract
     {
         // ── 位姿通道：上位机每颗产品只写这几个 ──
-
         /// <summary>X 方向平移量（mm）。</summary>
         public const int VrPoseDx = 0;
-
         /// <summary>Y 方向平移量（mm）。</summary>
         public const int VrPoseDy = 1;
-
         /// <summary>绕 Z 轴旋转角（弧度）。</summary>
         public const int VrPoseTheta = 2;
-
         /// <summary>旋转中心 X（mm）。标定后固定，换型时才写。</summary>
         public const int VrRotCenterX = 3;
-
         /// <summary>旋转中心 Y（mm）。</summary>
         public const int VrRotCenterY = 4;
 
         // ── 握手 ──
-
         /// <summary>运行请求：上位机写完位姿后置 1，卡上程序收下后清零。</summary>
         public const int VrRunRequest = 5;
-
         /// <summary>完成标志：卡上程序跑完一颗置 1，上位机清零。</summary>
         public const int VrDone = 6;
-
-        /// <summary>错误码：非 0 = 拒绝启动 / 运行异常（<see cref="ErrorIoNotImplemented"/> 见下）。</summary>
+        /// <summary>错误码：非 0 = 拒绝启动 / 运行异常。</summary>
         public const int VrError = 7;
+        /// <summary>
+        /// 中止请求：上位机置 1 表示"停止本颗产品"。
+        /// </summary>
+        /// <remarks>
+        /// 为什么需要一个独立的位而不是只调 API 停运动：卡上程序是个 <c>WHILE 1</c> 常驻循环，
+        /// 只停当前运动的话，它会接着往下发下一段的指令——"停不干净"。
+        /// 所以卡上程序每段先把 <see cref="VrAbortRequest" /> 判一遍，非 0 就跳过剩余段，
+        /// 由上位机（<c>Motion.Zmotion.ZmotionCardService.StopProgram</c>）置位 + 调 API 停运动，双保险。
+        /// </remarks>
+        public const int VrAbortRequest = 8;
+
+        //====【PSO新增VR】胶阀MOVEOP_DELAY补偿 mm，正数=提前触发输出 ====
+        public const int VrMoveOpDelay = 9;
 
         /// <summary>
         /// 骨架未实现阀门时序（PSO / <c>HW_PSWITCH</c> 参数序待核）时，卡上程序置的错误码。
@@ -58,32 +63,30 @@ namespace Motion.Zmotion
         /// 在点胶机上等于把产品白白走一遍（还可能撞针），必须让上位机看见失败。
         /// </remarks>
         public const int ErrorIoNotImplemented = 9001;
+        /// <summary>变换后的坐标越软限位，卡上程序拒绝启动。</summary>
+        public const int ErrorSoftLimitExceeded = 9002;
+        /// <summary>上位机请求中止（<see cref="VrAbortRequest" /> 被置 1）。</summary>
+        public const int ErrorAborted = 9004;
+        /// <summary>空移(Move)轨迹段携带IO触发事件，非法。</summary>
+        public const int ErrorMoveSegmentHasIo = 9006;
 
-        // ── 轨迹数据表：每段 <see cref="TableStride"/> 个数 ──
-
+        // ── 轨迹数据表：每段 <see cref="TableStride" /> 个数 ──
         /// <summary>每段占用的表项数。</summary>
         public const int TableStride = 7;
-
         /// <summary>段终点 X（mm，工件坐标）。</summary>
         public const int TableOffsetEndX = 0;
-
         /// <summary>段终点 Y（mm，工件坐标）。</summary>
         public const int TableOffsetEndY = 1;
-
         /// <summary>段速度（mm/s）。</summary>
         public const int TableOffsetSpeed = 2;
-
-        /// <summary>段模式：<see cref="SegmentModeMove"/> = 空移，<see cref="SegmentModeDispense"/> = 点胶。</summary>
+        /// <summary>段模式：<see cref="SegmentModeMove" /> = 空移，<see cref="SegmentModeDispense" /> = 点胶。</summary>
         public const int TableOffsetMode = 3;
-
         /// <summary>圆弧圆心 X（mm，绝对，工件坐标）；直线段填 0。</summary>
         public const int TableOffsetCenterX = 4;
-
         /// <summary>圆弧圆心 Y（mm，绝对，工件坐标）；直线段填 0。</summary>
         public const int TableOffsetCenterY = 5;
-
         /// <summary>
-        /// 段几何类型：<see cref="SegmentKindLine"/> = 直线，<see cref="SegmentKindArc"/> = 圆弧。
+        /// 段几何类型：<see cref="SegmentKindLine" /> = 直线，<see cref="SegmentKindArc" /> = 圆弧。
         /// </summary>
         /// <remarks>
         /// 单独占一列而不是"圆心为 0 就当直线"：过原点的圆弧会被误判成直线，这种错在轨迹上很难看出来。
@@ -92,53 +95,47 @@ namespace Motion.Zmotion
 
         /// <summary>段几何类型：直线。</summary>
         public const double SegmentKindLine = 0;
-
         /// <summary>段几何类型：圆弧（由"终点 + 圆心"定义）。</summary>
         public const double SegmentKindArc = 1;
-
         /// <summary>空移（不出胶）。</summary>
         public const double SegmentModeMove = 0;
-
         /// <summary>点胶（出胶）。</summary>
         public const double SegmentModeDispense = 1;
 
-        // ── IO 事件表：每事件 <see cref="IoStride"/> 个数 ──
-
+        // ── IO 事件表：每事件 <see cref="IoStride" /> 个数 ──
         /// <summary>每个 IO 事件占用的表项数（段号、段内行程、开关）。</summary>
         public const int IoStride = 3;
-
         /// <summary>IO 事件：所属段号。</summary>
         public const int IoOffsetMark = 0;
-
         /// <summary>IO 事件：自段起点起的行程（mm）。</summary>
         public const int IoOffsetDistance = 1;
-
         /// <summary>IO 事件：1 = 开阀，0 = 关阀。</summary>
         public const int IoOffsetOn = 2;
 
         /// <summary>轨迹表在 TABLE 里的起始下标。</summary>
         public const int TableBaseSegments = 0;
-
         /// <summary>IO 事件表在 TABLE 里的起始下标（由生成器按段数偏移后再用）。</summary>
-        /// <remarks>段表占 <c>段数 × TableStride</c> 项，IO 表紧跟其后，所以这里只是基址。</remarks>
+        /// <remarks>段表占 <c>段数 × TableStride</c> 项，IO 表紧跟其后，所以这里只是基址。真实地址 = TableBaseSegments + segCount*TableStride</remarks>
         public const int IoBaseAfterSegments = 0;
+
+        //==== PSO运行时临时TABLE缓冲区（运行时使用，不能与轨迹/IO/示波器TABLE区域重叠！根据你的控制器TABLE总大小调整） ====
+        /// <summary>PSO：当前段IO临时缓存 TABLE基址，存储[Distance,On]</summary>
+        public const int TmpIoTableBase = 1200;
+        /// <summary>PSO：全局矢量比较点TABLE基址，存储换算后的VECTOR_MOVED比较距离</summary>
+        public const int PsoPointTableBase = 1500;
+        /// <summary>点胶阀高速DO输出端口号，HW_PSWITCH2使用</summary>
+        public const int DispenseDoPort = 0;
 
         /// <summary>
         /// 软限位（mm）：变换后的任一点越界就拒绝启动。
         /// </summary>
         /// <remarks>
-        /// 先按常量占位，接配置后应由设备行程注入（<c>App/production-line.json</c> 一类）。
+        /// 先按常量占位，接配置后应由设备行程注入（<c>App/production‑line.json</c> 一类）。
         /// 卡上程序里这道自检是"把错误挡在动作之前"的最后一道闸。
         /// </remarks>
         public const double SoftLimitXMin = 0.0;
-
-        /// <summary>软限位 X 上限（mm）。</summary>
         public const double SoftLimitXMax = 500.0;
-
-        /// <summary>软限位 Y 下限（mm）。</summary>
         public const double SoftLimitYMin = 0.0;
-
-        /// <summary>软限位 Y 上限（mm）。</summary>
         public const double SoftLimitYMax = 500.0;
     }
 }

@@ -199,62 +199,80 @@ namespace Vision.Halcon
 
         public ImageQualityResult CheckImageQuality(InspectionImage image)
         {
-            GCHandle handle = GCHandle.Alloc(image.RawData, GCHandleType.Pinned);
-            
-            IntPtr ptr = handle.AddrOfPinnedObject();
-                
-            HImage hImage = new HImage("byte",image.ImageWidth,image.ImageHeight,ptr);
-
-            HTuple meanTuple = null, deviationTuple=null;
-            HObject roi = hImage.GetDomain();
+            // 取图：有像素用像素，没有就按路径让 HALCON 读文件（总线只送路径，不带像素）
+            HalconImageLease lease;
             try
             {
-               
-                HOperatorSet.Intensity(roi,hImage, out meanTuple, out deviationTuple);
-
-                double mean = meanTuple[0];
-                double dev = deviationTuple[0];
-
-                var score = mean * 0.5 + dev * 0.5;
-
-                
-
-
-                return new ImageQualityResult
-                {
-                    IsPass = (_minBrightness <= mean && mean <= _maxBrightness) && (_minContrast <= dev && dev <= _maxContrast) ? (score >= _scoreThreshold ? true : false) : false,
-                    Score = score
-                };
-            
-            }catch(Exception ex)
-            {
-                _logService.Log(LogLevel.Warn,$"定位图像质量检测异常：{ex.Message}");
-                return new ImageQualityResult
-                {
-                    IsPass = false,
-                    Score = 0.0
-                };
+                lease = HalconImageLease.Open(image);
             }
-            finally
+            catch (Exception ex)
             {
-                handle.Free();
-                meanTuple?.Dispose();
-                deviationTuple?.Dispose();
-                roi?.Dispose();
-
+                _logService.Log(LogLevel.Warn, $"定位取图失败：{ex.Message}");
+                return new ImageQualityResult { IsPass = false, Score = 0.0 };
             }
-               
+
+            using (lease)
+            {
+                HImage hImage = lease.Image;
+
+                HTuple meanTuple = null, deviationTuple = null;
+                HObject roi = hImage.GetDomain();
+                try
+                {
+
+                    HOperatorSet.Intensity(roi, hImage, out meanTuple, out deviationTuple);
+
+                    double mean = meanTuple[0];
+                    double dev = deviationTuple[0];
+
+                    var score = mean * 0.5 + dev * 0.5;
+
+
+
+
+                    return new ImageQualityResult
+                    {
+                        IsPass = (_minBrightness <= mean && mean <= _maxBrightness) && (_minContrast <= dev && dev <= _maxContrast) ? (score >= _scoreThreshold ? true : false) : false,
+                        Score = score
+                    };
+
+                }
+                catch (Exception ex)
+                {
+                    _logService.Log(LogLevel.Warn, $"定位图像质量检测异常：{ex.Message}");
+                    return new ImageQualityResult
+                    {
+                        IsPass = false,
+                        Score = 0.0
+                    };
+                }
+                finally
+                {
+                    meanTuple?.Dispose();
+                    deviationTuple?.Dispose();
+                    roi?.Dispose();
+                }
+            }
         }
 
         public ProductPose? FindProductPose(InspectionImage image)
         {
-            GCHandle handle = GCHandle.Alloc(image.RawData, GCHandleType.Pinned);
+            HalconImageLease lease;
+            try
+            {
+                lease = HalconImageLease.Open(image);
+            }
+            catch (Exception ex)
+            {
+                _logService?.Log(LogLevel.Warn, $"定位取图失败：{ex.Message}");
+                return null;
+            }
 
-            IntPtr ptr = handle.AddrOfPinnedObject();
+            using (lease)
+            {
+                HImage hImage = lease.Image;
 
-            HImage hImage = new HImage("byte", image.ImageWidth, image.ImageHeight, ptr);
-
-            HTuple row = null, column = null, angle = null, score = null;
+                HTuple row = null, column = null, angle = null, score = null;
 
 
             try
@@ -308,14 +326,12 @@ namespace Vision.Halcon
             }
             finally
             {
-                handle.Free();
                 row?.Dispose();
                 column?.Dispose();
                 angle?.Dispose();
                 score?.Dispose();
-                hImage?.Dispose();
-
-            } 
+            }
+            }
         }
 
         private bool LoadShapeModle(string v, out HTuple modelId)

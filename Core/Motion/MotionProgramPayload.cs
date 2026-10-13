@@ -11,9 +11,9 @@ namespace Core.Motion
     /// </param>
     /// <remarks>
     /// <para>
-    /// 与 <c>Motion.MotionCardCommandSet</c> 的分工：后者是<b>厂商无关</b>的指令集
+    /// 与 <c>Core.Motion.MotionCardCommandSet</c> 的分工：后者是<b>厂商无关</b>的指令集
     /// （几何 + 工艺 + IO 行程），本类型是某个品牌的最终形态，
-    /// 由 <c>Motion.IMotionProgramWriter</c> 产出、由卡侧整包下载。
+    /// 由 <c>Core.Motion.IMotionProgramWriter</c> 产出、由卡侧整包下载。
     /// </para>
     /// <para>
     /// 只有 <see cref="Text"/> 没有二进制字段：目前两家都支持"整包下发一个文本程序"。

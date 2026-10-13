@@ -1,0 +1,529 @@
+<UserControl x:Class="Motion.View.AxisMotion"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             d:DesignHeight="760" d:DesignWidth="1200"
+             Background="Transparent"
+             FontFamily="Microsoft YaHei UI, Segoe UI"
+             FontSize="12"
+             TextOptions.TextFormattingMode="Display"
+             UseLayoutRounding="True">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="MotionTheme.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Background="{StaticResource PageBackground}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- ═════════ 轴标题 + 状态灯 ═════════ -->
+        <Border Grid.Row="0" Background="{StaticResource HeaderBackground}"
+                BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="0,0,0,1"
+                Padding="16,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" CornerRadius="6" Padding="12,3" MinWidth="44">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="{StaticResource Accent}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding AxisName}" Value="Y">
+                                    <Setter Property="Background" Value="{StaticResource AccentGreen}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding AxisName}" Value="Z">
+                                    <Setter Property="Background" Value="{StaticResource AccentAmber}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <TextBlock Text="{Binding AxisName}" FontSize="19" FontWeight="Bold"
+                               Foreground="#06262C" HorizontalAlignment="Center" />
+                </Border>
+
+                <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding AxisTitle}" FontSize="16" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimary}" />
+                    <TextBlock Text="{Binding AxisSubtitle}" Style="{StaticResource CaptionText}" Margin="0,2,0,0" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,18,0">
+                        <Ellipse>
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse" BasedOn="{StaticResource StatusDot}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsConnected}" Value="True">
+                                            <Setter Property="Fill" Value="{StaticResource Ok}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock Text="{Binding ConnectionText}" Style="{StaticResource CaptionText}"
+                                   Margin="6,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,18,0">
+                        <Ellipse>
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse" BasedOn="{StaticResource StatusDot}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsMoving}" Value="True">
+                                            <Setter Property="Fill" Value="{StaticResource Warning}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock Text="{Binding MotionText}" Style="{StaticResource CaptionText}"
+                                   Margin="6,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,18,0">
+                        <Ellipse>
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse" BasedOn="{StaticResource StatusDot}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsHomed}" Value="True">
+                                            <Setter Property="Fill" Value="{StaticResource Ok}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock Text="{Binding HomedText}" Style="{StaticResource CaptionText}"
+                                   Margin="6,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse>
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse" BasedOn="{StaticResource StatusDot}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsAlarm}" Value="True">
+                                            <Setter Property="Fill" Value="{StaticResource Danger}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock Text="{Binding AlarmText}" Style="{StaticResource CaptionText}"
+                                   Margin="6,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ═════════ 三块面板 ═════════ -->
+        <Grid Grid.Row="1" Margin="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="300" />
+                <ColumnDefinition Width="*" MinWidth="300" />
+                <ColumnDefinition Width="*" MinWidth="300" />
+            </Grid.ColumnDefinitions>
+
+            <!-- ───────── 机械与运动参数 ───────── -->
+            <Border Grid.Column="0" Style="{StaticResource Panel}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Style="{StaticResource PanelHeader}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="机械与运动参数" Style="{StaticResource PanelTitleText}" />
+                                <TextBlock Text="MECHANICS" Style="{StaticResource CaptionText}"
+                                           Margin="8,0,0,0" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Button Content="读取" Style="{StaticResource SecondaryButton}"
+                                        Padding="10,4" MinWidth="52"
+                                        Command="{Binding ReadParametersCommand}" />
+                                <Button Content="保存到控制器" Style="{StaticResource PrimaryButton}"
+                                        Padding="10,4" Margin="8,0,0,0"
+                                        Command="{Binding SaveParametersCommand}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="12,10">
+                        <StackPanel>
+                            <TextBlock Text="机械换算" Style="{StaticResource SectionTitleText}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="*" MinWidth="90" />
+                                    <ColumnDefinition Width="58" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="34" />
+                                    <RowDefinition Height="34" />
+                                    <RowDefinition Height="34" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="脉冲数" Style="{StaticResource FieldLabelText}" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource NumericInput}"
+                                         Text="{Binding PulsePerRev, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="脉冲/转" Style="{StaticResource UnitText}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="减速比" Style="{StaticResource FieldLabelText}" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource NumericInput}"
+                                         Text="{Binding GearRatio, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="电机/负载" Style="{StaticResource UnitText}" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="导程" Style="{StaticResource FieldLabelText}" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource NumericInput}"
+                                         Text="{Binding Lead, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="2" Grid.Column="2" Text="mm/转" Style="{StaticResource UnitText}" />
+                            </Grid>
+
+                            <Border Style="{StaticResource ReadoutBox}" Margin="0,10,0,0" Padding="10,8">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="控制器当前当量" Style="{StaticResource CaptionText}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding CardUnitsText}"
+                                                   HorizontalAlignment="Right" FontFamily="Consolas"
+                                                   Foreground="{StaticResource TextPrimary}" FontSize="12" />
+                                    </Grid>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="本次下发当量" Style="{StaticResource CaptionText}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding PulseEquivalentText}"
+                                                   HorizontalAlignment="Right" TextAlignment="Right"
+                                                   FontFamily="Consolas" Foreground="{StaticResource Accent}"
+                                                   FontSize="12" TextWrapping="Wrap" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="运动参数" Style="{StaticResource SectionTitleText}" Margin="0,16,0,8" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="*" MinWidth="90" />
+                                    <ColumnDefinition Width="58" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="34" />
+                                    <RowDefinition Height="34" />
+                                    <RowDefinition Height="34" />
+                                    <RowDefinition Height="34" />
+                                    <RowDefinition Height="34" />
+                                    <RowDefinition Height="34" />
+                                    <RowDefinition Height="34" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="速度" Style="{StaticResource FieldLabelText}" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource NumericInput}"
+                                         Text="{Binding Speed, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="mm/s" Style="{StaticResource UnitText}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="加速度" Style="{StaticResource FieldLabelText}" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource NumericInput}"
+                                         Text="{Binding Acceleration, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="mm/s²" Style="{StaticResource UnitText}" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="减速度" Style="{StaticResource FieldLabelText}" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource NumericInput}"
+                                         Text="{Binding Deceleration, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="2" Grid.Column="2" Text="mm/s²" Style="{StaticResource UnitText}" />
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="S 曲线" Style="{StaticResource FieldLabelText}" />
+                                <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource NumericInput}"
+                                         Text="{Binding SCurve, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="3" Grid.Column="2" Text="s" Style="{StaticResource UnitText}" />
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="快减减速度" Style="{StaticResource FieldLabelText}" />
+                                <TextBox Grid.Row="4" Grid.Column="1" Style="{StaticResource NumericInput}"
+                                         Text="{Binding FastDeceleration, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="4" Grid.Column="2" Text="mm/s²" Style="{StaticResource UnitText}" />
+
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="正向软限位" Style="{StaticResource FieldLabelText}" />
+                                <TextBox Grid.Row="5" Grid.Column="1" Style="{StaticResource NumericInput}"
+                                         Text="{Binding PositiveLimit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="5" Grid.Column="2" Text="mm" Style="{StaticResource UnitText}" />
+
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="负向软限位" Style="{StaticResource FieldLabelText}" />
+                                <TextBox Grid.Row="6" Grid.Column="1" Style="{StaticResource NumericInput}"
+                                         Text="{Binding NegativeLimit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="6" Grid.Column="2" Text="mm" Style="{StaticResource UnitText}" />
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <!-- ───────── 回零参数 ───────── -->
+            <Border Grid.Column="1" Style="{StaticResource Panel}" Margin="10,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Style="{StaticResource PanelHeader}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="回零参数" Style="{StaticResource PanelTitleText}" />
+                                <TextBlock Text="HOMING" Style="{StaticResource CaptionText}"
+                                           Margin="8,0,0,0" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Button Content="读取" Style="{StaticResource SecondaryButton}"
+                                        Padding="10,4" MinWidth="52"
+                                        Command="{Binding ReadHomeCommand}" />
+                                <Button Content="保存" Style="{StaticResource PrimaryButton}"
+                                        Padding="10,4" Margin="8,0,0,0"
+                                        Command="{Binding SaveHomeCommand}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="12,10">
+                        <StackPanel>
+                            <TextBlock Text="输入信号" Style="{StaticResource SectionTitleText}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="*" MinWidth="90" />
+                                    <ColumnDefinition Width="58" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="34" />
+                                    <RowDefinition Height="34" />
+                                    <RowDefinition Height="34" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="原点 IN" Style="{StaticResource FieldLabelText}" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource NumericInput}"
+                                         Text="{Binding HomeInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="DI 号" Style="{StaticResource UnitText}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="正限位 IN" Style="{StaticResource FieldLabelText}" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource NumericInput}"
+                                         Text="{Binding ForwardLimitInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="DI 号" Style="{StaticResource UnitText}" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="负限位 IN" Style="{StaticResource FieldLabelText}" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource NumericInput}"
+                                         Text="{Binding ReverseLimitInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="2" Grid.Column="2" Text="DI 号" Style="{StaticResource UnitText}" />
+                            </Grid>
+
+                            <TextBlock Text="速度与方式" Style="{StaticResource SectionTitleText}" Margin="0,16,0,8" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="*" MinWidth="90" />
+                                    <ColumnDefinition Width="58" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="34" />
+                                    <RowDefinition Height="34" />
+                                    <RowDefinition Height="34" />
+                                    <RowDefinition Height="34" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="回原速度" Style="{StaticResource FieldLabelText}" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource NumericInput}"
+                                         Text="{Binding HomeFastSpeed, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="mm/s" Style="{StaticResource UnitText}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="反找速度" Style="{StaticResource FieldLabelText}" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource NumericInput}"
+                                         Text="{Binding CreepSpeed, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="mm/s" Style="{StaticResource UnitText}" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="还原偏移" Style="{StaticResource FieldLabelText}" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource NumericInput}"
+                                         Text="{Binding HomeOffset, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="2" Grid.Column="2" Text="mm" Style="{StaticResource UnitText}" />
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="回零方式" Style="{StaticResource FieldLabelText}" />
+                                <TextBox Grid.Row="3" Grid.Column="1" Style="{StaticResource NumericInput}"
+                                         Text="{Binding HomeMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="3" Grid.Column="2" Text="0..7" Style="{StaticResource UnitText}" />
+                            </Grid>
+
+                            <Border Style="{StaticResource ReadoutBox}" Margin="0,16,0,0" Padding="10,10">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource CaptionText}" TextWrapping="Wrap"
+                                               Text="回零前确认轴周围无人、无料。回原速度对应 FHSPEED、反找速度对应 CREEP；方式 0..7 的含义随控制器固件与现场接线，首次上机请空跑确认。" />
+                                    <Button Content="单轴回零" Style="{StaticResource PrimaryButton}"
+                                            Command="{Binding HomeCommand}" Margin="0,10,0,0" Height="34" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+
+            <!-- ───────── 单轴调试 ───────── -->
+            <Border Grid.Column="2" Style="{StaticResource Panel}" Margin="10,0,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Style="{StaticResource PanelHeader}">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="单轴调试" Style="{StaticResource PanelTitleText}" />
+                            <TextBlock Text="JOG &amp; POSITION" Style="{StaticResource CaptionText}"
+                                       Margin="8,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="12,10">
+                        <StackPanel>
+                            <TextBlock Text="实时状态" Style="{StaticResource SectionTitleText}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource ReadoutBox}" Margin="0,0,5,5">
+                                    <StackPanel>
+                                        <TextBlock Text="指令位置 (mm)" Style="{StaticResource CaptionText}" />
+                                        <TextBlock Text="{Binding CommandPosition, StringFormat={}{0:F3}, TargetNullValue=—}"
+                                                   Style="{StaticResource ReadoutValueText}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Row="0" Grid.Column="1" Style="{StaticResource ReadoutBox}" Margin="5,0,0,5">
+                                    <StackPanel>
+                                        <TextBlock Text="反馈位置 (mm)" Style="{StaticResource CaptionText}" />
+                                        <TextBlock Text="{Binding FeedbackPosition, StringFormat={}{0:F3}, TargetNullValue=—}"
+                                                   Style="{StaticResource ReadoutValueText}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource ReadoutBox}" Margin="0,5,5,0">
+                                    <StackPanel>
+                                        <TextBlock Text="实际速度 (mm/s)" Style="{StaticResource CaptionText}" />
+                                        <TextBlock Text="{Binding ActualSpeed, StringFormat={}{0:F2}, TargetNullValue=—}"
+                                                   Style="{StaticResource ReadoutValueText}" FontSize="15" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Row="1" Grid.Column="1" Style="{StaticResource ReadoutBox}" Margin="5,5,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="回零状态" Style="{StaticResource CaptionText}" />
+                                        <TextBlock Text="{Binding HomedText}"
+                                                   Style="{StaticResource ReadoutValueText}" FontSize="15" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <Border Style="{StaticResource ReadoutBox}" Margin="0,10,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="轴状态" Style="{StaticResource CaptionText}" />
+                                    <TextBlock Text="{Binding AxisStatusText}" Foreground="{StaticResource TextPrimary}"
+                                               FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="点位运动" Style="{StaticResource SectionTitleText}" Margin="0,16,0,8" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="*" MinWidth="90" />
+                                    <ColumnDefinition Width="58" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="34" />
+                                        <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="目标位置" Style="{StaticResource FieldLabelText}" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource NumericInput}"
+                                         Text="{Binding TargetPosition, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="mm" Style="{StaticResource UnitText}" />
+
+                                <CheckBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
+                                          Style="{StaticResource MotionCheckBox}" Margin="0,8,0,0"
+                                          IsChecked="{Binding IsAbsoluteMove, Mode=TwoWay}"
+                                          Content="绝对运动（未勾选 = 相对当前位置）" />
+                            </Grid>
+
+                            <Button Content="单轴定位" Style="{StaticResource PrimaryButton}"
+                                    Command="{Binding MoveCommand}" Height="36" Margin="0,12,0,0" />
+
+                            <TextBlock Text="点动" Style="{StaticResource SectionTitleText}" Margin="0,18,0,8" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0" Content="正转" Style="{StaticResource SecondaryButton}"
+                                        Command="{Binding JogForwardCommand}" Height="36" Margin="0,0,5,0" />
+                                <Button Grid.Column="1" Content="反转" Style="{StaticResource SecondaryButton}"
+                                        Command="{Binding JogReverseCommand}" Height="36" Margin="5,0,0,0" />
+                            </Grid>
+                            <Button Content="停止" Style="{StaticResource DangerButton}"
+                                    Command="{Binding StopCommand}" Height="40" Margin="0,8,0,0" />
+                            <TextBlock Style="{StaticResource CaptionText}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                       Text="点动是持续运动：按下“正转/反转”后轴会一直走，必须按“停止”结束。" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ═════════ 操作结果 ═════════ -->
+        <Border Grid.Row="2" Background="{StaticResource SectionBackground}"
+                BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="0,1,0,0"
+                Padding="16,8">
+            <StackPanel Orientation="Horizontal">
+                <Ellipse Width="8" Height="8" VerticalAlignment="Center">
+                    <Ellipse.Style>
+                        <Style TargetType="Ellipse">
+                            <Setter Property="Fill" Value="{StaticResource Ok}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding LastOperationFailed}" Value="True">
+                                    <Setter Property="Fill" Value="{StaticResource Danger}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Ellipse.Style>
+                </Ellipse>
+                <TextBlock Text="{Binding LastMessage}" Style="{StaticResource CaptionText}"
+                           Margin="8,0,0,0" VerticalAlignment="Center" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

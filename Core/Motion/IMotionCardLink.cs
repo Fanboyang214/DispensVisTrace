@@ -6,7 +6,7 @@ namespace Core.Motion
     /// <remarks>
     /// <para>
     /// 只管"连上 / 断开 / 是否在线"。<b>不做业务</b>：位姿下发、程序装载、启停都在
-    /// <c>Motion.IMotionCardService</c>。
+    /// <c>Core.Motion.IMotionCardService</c>。
     /// </para>
     /// <para>
     /// <b>连接所有权必须唯一。</b>一张卡只有一份原生状态（句柄、当前坐标、缓冲/程序区、单位与轴映射），

@@ -1,6 +1,7 @@
 using System.Diagnostics;
+using System.IO;
 
-namespace Acquisition;
+namespace Acquisition.Camera;
 
 /// <summary>
 /// 把相机出来的 8bit 灰度像素写成 BMP。

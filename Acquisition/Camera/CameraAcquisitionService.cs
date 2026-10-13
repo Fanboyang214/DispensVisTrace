@@ -1,7 +1,8 @@
+using System.IO;
 using Core.Acquisition;
 using Core.Logging;
 
-namespace Acquisition;
+namespace Acquisition.Camera;
 
 /// <summary>
 /// 单台相机的采集服务。

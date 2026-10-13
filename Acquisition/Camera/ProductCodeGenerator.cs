@@ -1,4 +1,4 @@
-namespace Acquisition;
+namespace Acquisition.Camera;
 
 /// <summary>
 /// 产品条码发生器：内部自增编号，不依赖扫码枪或上位机下发。

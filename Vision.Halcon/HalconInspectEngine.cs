@@ -45,6 +45,9 @@ namespace Vision.Halcon
             _logService = containerProvider.Resolve<ILogService>();
         }
 
+        /// <inheritdoc />
+        public double? LastConfidence { get; private set; }
+
         public bool Initialize(InspectConfig config)
         {
             if (_disposed) return false;
@@ -136,65 +139,78 @@ namespace Vision.Halcon
             if (_config == null)
             {
                 _logService.Log(LogLevel.Warn, "检测引擎未初始化，跳过检测");
-                return;
-            }
-            if (image.RawData == null || image.RawData.Length == 0)
-            {
-                _logService.Log(LogLevel.Warn, "检测图像数据为空，跳过检测");
+                LastConfidence = null;
                 return;
             }
 
-            GCHandle handle = GCHandle.Alloc(image.RawData, GCHandleType.Pinned);
-            HImage hImage = null;
-            HObject roi = null;
-
+            // 取图：有像素用像素，没有就按路径让 HALCON 读文件（总线只送路径，不带像素）
+            HalconImageLease lease;
             try
             {
-                IntPtr ptr = handle.AddrOfPinnedObject();
-                hImage = new HImage("byte", image.ImageWidth, image.ImageHeight, ptr);
-
-                bool qualityPass = CheckImageQuality(hImage);
-                if (!qualityPass)
-                {
-                    _logService.Log(LogLevel.Warn, "检测图像质量不合格，跳过检测");
-                    return;
-                }
-
-                HImage preprocessed = PreprocessImage(hImage);
-                try
-                {
-                    HObject beadRegion = ExtractBead(preprocessed);
-                    try
-                    {
-                        MeasureGlueWidth(beadRegion);
-                        DetectContinuity(beadRegion);
-                        DetectOffset(beadRegion);
-                        DetectOverflow(beadRegion);
-                        ClassifyDefects();
-                    }
-                    finally
-                    {
-                        beadRegion?.Dispose();
-                    }
-                }
-                finally
-                {
-                    preprocessed?.Dispose();
-                }
+                lease = HalconImageLease.Open(image);
             }
             catch (Exception ex)
             {
-                _logService.Log(LogLevel.Error, $"检测异常：{ex.Message}");
+                _logService.Log(LogLevel.Warn, $"检测取图失败：{ex.Message}");
+                LastConfidence = null;
+                return;
             }
-            finally
+
+            using (lease)
             {
-                handle.Free();
-                hImage?.Dispose();
-                roi?.Dispose();
+                HImage hImage = lease.Image;
+                HObject roi = null;
+
+                try
+                {
+                    double qualityScore;
+                    bool qualityPass = CheckImageQuality(hImage, out qualityScore);
+
+                    // 先记下分数再判合格：这个分数就是配置阈值（imageQualityGate.scoreThreshold）
+                    // 拿来比的那个值，所以它就是"检测置信度"这个点该上报的内容
+                    LastConfidence = qualityScore;
+
+                    if (!qualityPass)
+                    {
+                        _logService.Log(LogLevel.Warn, "检测图像质量不合格，跳过检测");
+                        return;
+                    }
+
+                    HImage preprocessed = PreprocessImage(hImage);
+                    try
+                    {
+                        HObject beadRegion = ExtractBead(preprocessed);
+                        try
+                        {
+                            MeasureGlueWidth(beadRegion);
+                            DetectContinuity(beadRegion);
+                            DetectOffset(beadRegion);
+                            DetectOverflow(beadRegion);
+                            ClassifyDefects();
+                        }
+                        finally
+                        {
+                            beadRegion?.Dispose();
+                        }
+                    }
+                    finally
+                    {
+                        preprocessed?.Dispose();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logService.Log(LogLevel.Error, $"检测异常：{ex.Message}");
+                    LastConfidence = null;
+                }
+                finally
+                {
+                    roi?.Dispose();
+                }
             }
         }
 
-        private bool CheckImageQuality(HImage image)
+        private bool CheckImageQuality(HImage image, out double score)
         {
             HTuple meanTuple = null, deviationTuple = null;
             HObject domain = null;
@@ -205,7 +221,7 @@ namespace Vision.Halcon
 
                 double mean = meanTuple[0];
                 double dev = deviationTuple[0];
-                double score = mean * 0.5 + dev * 0.5;
+                score = mean * 0.5 + dev * 0.5;
 
                 bool isPass = (_minBrightness <= mean && mean <= _maxBrightness)
                            && (_minContrast <= dev && dev <= _maxContrast)

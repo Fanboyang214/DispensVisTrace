@@ -1,6 +1,4 @@
-using Core.Motion;
-
-namespace Motion
+namespace Core.Motion
 {
     /// <summary>
     /// 转换器：<b>厂商无关的指令集</b> → 某个品牌控制器能执行的程序载荷。
@@ -13,7 +11,9 @@ namespace Motion
     /// </para>
     /// <para>
     /// 实现必须是<b>纯函数</b>：不碰卡、不碰磁盘、无状态。这样格式能单测、能离线比对、
-    /// 能进版本管理；联网与下发是 <c>IMotionCardService</c> 的事。
+    /// 能进版本管理；联网与下发是 <see cref="IMotionCardService"/> 的事。
+    /// 实现放在<b>品牌实现程序集</b>（如 <c>Motion.Zmotion.ZmotionProgramWriter</c>），
+    /// Core 只留这个契约。
     /// </para>
     /// <para>
     /// <b>表达不了就抛异常，绝不降级。</b>静默降级意味着阀门时序被悄悄挪了位置——
@@ -29,7 +29,7 @@ namespace Motion
         /// 生成程序载荷。
         /// </summary>
         /// <param name="commands">
-        /// 由 <c>DispenseProgram.BuildMotionCardCommands</c> 生成的厂商无关指令集。
+        /// 由 <c>Motion.DispenseProgram.BuildMotionCardCommands</c> 生成的厂商无关指令集。
         /// </param>
         /// <exception cref="System.InvalidOperationException">指令集不完整（坐标不足、圆弧缺圆心等）。</exception>
         /// <exception cref="System.NotSupportedException">该格式表达不了这条轨迹（骨架阶段的已知缺口）。</exception>

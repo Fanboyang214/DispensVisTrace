@@ -2,7 +2,7 @@ using Core.Acquisition;
 using Core.Logging;
 using MvCameraControl;
 
-namespace Acquisition;
+namespace Acquisition.Camera;
 
 /// <summary>
 /// 海康 MVS 相机驱动（MvCameraControl.Net 的面向对象 API）。

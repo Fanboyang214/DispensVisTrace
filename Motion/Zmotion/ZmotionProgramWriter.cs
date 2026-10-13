@@ -1,4 +1,5 @@
 using Core.Motion;
+using Core.Zmotion;
 using System;
 using System.Globalization;
 using System.Text;
@@ -84,10 +85,11 @@ namespace Motion.Zmotion
                 ZmotionProgramContract.VrRotCenterY,
                 Environment.NewLine);
             text.AppendFormat(
-                "'   VR：{0}=运行请求(上位机置1) {1}=完成标志(卡置1) {2}=错误码{3}",
+                "'   VR：{0}=运行请求(上位机置1) {1}=完成标志(卡置1) {2}=错误码 {3}=中止请求(上位机置1){4}",
                 ZmotionProgramContract.VrRunRequest,
                 ZmotionProgramContract.VrDone,
                 ZmotionProgramContract.VrError,
+                ZmotionProgramContract.VrAbortRequest,
                 Environment.NewLine);
             text.AppendFormat(
                 "'   轨迹表 TABLE：0 起，每段 {0} 项 = 终点X, 终点Y, 速度, 模式(1=点胶), 圆心X, 圆心Y, 段类型(1=圆弧){1}",
@@ -266,8 +268,9 @@ namespace Motion.Zmotion
                 ZmotionProgramContract.SoftLimitYMax);
             text.AppendFormat(
                 CultureInfo.InvariantCulture,
-                "                VR({0}) = 9002        ' 越软限位，拒绝启动\n",
-                ZmotionProgramContract.VrError);
+                "                VR({0}) = {1}        ' 越软限位，拒绝启动\n",
+                ZmotionProgramContract.VrError,
+                ZmotionProgramContract.ErrorSoftLimitExceeded);
             text.AppendLine("            ENDIF");
             text.AppendLine("        NEXT i");
             text.AppendLine();
@@ -293,13 +296,32 @@ namespace Motion.Zmotion
             text.AppendLine("                acy = cy + (ax - cx) * SIN(th) + (ay - cy) * COS(th) + dy");
             text.AppendLine("                SPEED = sp");
             text.AppendLine("                ' 待核：直线段 MOVEA(终点)；圆弧段 MOVECIRC(圆心, 终点)；缓冲/连续插补指令名待确认");
-            text.AppendLine("                IF st = 1 THEN");
-            text.AppendLine("                    MOVECIRC(acx, acy, tx, ty)");
-            text.AppendLine("                ELSE");
-            text.AppendLine("                    MOVEA(tx, ty)");
+            text.AppendFormat(
+                CultureInfo.InvariantCulture,
+                "                IF VR({0}) = 0 THEN        ' 上位机没喊停，才发这一段\n",
+                ZmotionProgramContract.VrAbortRequest);
+            text.AppendLine("                    IF st = 1 THEN");
+            text.AppendLine("                        MOVECIRC(acx, acy, tx, ty)");
+            text.AppendLine("                    ELSE");
+            text.AppendLine("                        MOVEA(tx, ty)");
+            text.AppendLine("                    ENDIF");
             text.AppendLine("                ENDIF");
             text.AppendLine("            NEXT i");
             text.AppendLine("            WAIT IDLE                  ' 待核：等待运动完成的指令名");
+            text.AppendFormat(
+                CultureInfo.InvariantCulture,
+                "            IF VR({0}) = 1 THEN\n",
+                ZmotionProgramContract.VrAbortRequest);
+            text.AppendFormat(
+                CultureInfo.InvariantCulture,
+                "                VR({0}) = {1}        ' 上位机请求中止\n",
+                ZmotionProgramContract.VrError,
+                ZmotionProgramContract.ErrorAborted);
+            text.AppendFormat(
+                CultureInfo.InvariantCulture,
+                "                VR({0}) = 0           ' 应答：清请求，免得下一颗一上来就被中止\n",
+                ZmotionProgramContract.VrAbortRequest);
+            text.AppendLine("            ENDIF");
             text.AppendLine("        ENDIF");
             text.AppendLine();
             text.AppendFormat(CultureInfo.InvariantCulture, "        VR({0}) = 1\n", ZmotionProgramContract.VrDone);

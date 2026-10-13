@@ -1,12 +1,12 @@
-namespace Motion.Zmotion
+namespace Core.Zmotion
 {
     /// <summary>
     /// 上位机与卡上程序之间的<b>数据契约</b>：VR 通道号与轨迹表布局。
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 上位机侧（<see cref="ZmotionCardService"/>）按这里的编号写 VR，
-    /// 卡上程序（<see cref="ZmotionProgramWriter"/> 生成的 ZBasic）按同一编号读。
+    /// 上位机侧（<c>Motion.Zmotion.ZmotionCardService</c>）按这里的编号写 VR，
+    /// 卡上程序（<c>Motion.Zmotion.ZmotionProgramWriter</c> 生成的 ZBasic）按同一编号读。
     /// 契约写成代码、两边都引用它，是为了不让"写的人"和"读的人"各记一套编号而漂移。
     /// </para>
     /// <para>
@@ -51,6 +51,17 @@ namespace Motion.Zmotion
         public const int VrError = 7;
 
         /// <summary>
+        /// 中止请求：上位机置 1 表示"停止本颗产品"。
+        /// </summary>
+        /// <remarks>
+        /// 为什么需要一个独立的位而不是只调 API 停运动：卡上程序是个 <c>WHILE 1</c> 常驻循环，
+        /// 只停当前运动的话，它会接着往下发下一段的指令——"停不干净"。
+        /// 所以卡上程序每段先把 <see cref="VrAbortRequest"/> 判一遍，非 0 就跳过剩余段，
+        /// 由上位机（<c>Motion.Zmotion.ZmotionCardService.StopProgram</c>）置位 + 调 API 停运动，双保险。
+        /// </remarks>
+        public const int VrAbortRequest = 8;
+
+        /// <summary>
         /// 骨架未实现阀门时序（PSO / <c>HW_PSWITCH</c> 参数序待核）时，卡上程序置的错误码。
         /// </summary>
         /// <remarks>
@@ -58,6 +69,12 @@ namespace Motion.Zmotion
         /// 在点胶机上等于把产品白白走一遍（还可能撞针），必须让上位机看见失败。
         /// </remarks>
         public const int ErrorIoNotImplemented = 9001;
+
+        /// <summary>变换后的坐标越软限位，卡上程序拒绝启动。</summary>
+        public const int ErrorSoftLimitExceeded = 9002;
+
+        /// <summary>上位机请求中止（<see cref="VrAbortRequest"/> 被置 1）。</summary>
+        public const int ErrorAborted = 9004;
 
         // ── 轨迹数据表：每段 <see cref="TableStride"/> 个数 ──
 

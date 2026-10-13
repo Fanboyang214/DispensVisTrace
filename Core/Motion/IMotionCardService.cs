@@ -1,11 +1,14 @@
-using Core.Motion;
-
-namespace Motion
+namespace Core.Motion
 {
     /// <summary>
     /// 上位机与运动控制卡之间的<b>工艺通道</b>：整套轨迹的装载、位姿、启停。
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// <b>为什么在 Core：</b>上位机流程（App 只引用 Core）与各品牌实现（<c>Motion.Zmotion.ZmotionCardService</c>）
+    /// 都要看到这一个契约。<b>实现不在 Core</b>——Core 只放接口与纯数据，
+    /// 免得核心域反向依赖某个品牌的卡栈。
+    /// </para>
     /// <para>
     /// 与数据点通道的分工：资源树上的轴/坐标系读点、jog 单步、上位机侧参数归驱动
     /// （<c>IProtocolDriver</c>）；本接口只管"整套轨迹"这一层。
@@ -42,7 +45,7 @@ namespace Motion
         /// 装载整套轨迹（<b>只装载，不启动</b>）。
         /// </summary>
         /// <param name="commands">
-        /// 由 <c>DispenseProgram.BuildMotionCardCommands</c> 生成的厂商无关指令集。
+        /// 由 <c>Motion.DispenseProgram.BuildMotionCardCommands</c> 生成的厂商无关指令集。
         /// 落成什么形态（卡上程序 / G 代码文件 / 连续插补列表）由实现经
         /// <see cref="IMotionProgramWriter"/> 决定。
         /// </param>
@@ -53,7 +56,7 @@ namespace Motion
         /// 设置本颗产品的工件位姿偏移（旋转中心 + 平移 + 转角）。
         /// </summary>
         /// <remarks>
-        /// 变换约定与 <c>TrajectorySegment.Transform</c> 一致：先绕旋转中心转 theta，再平移 (dx, dy)，Z 不参与。
+        /// 变换约定与 <c>Motion.TrajectorySegment.Transform</c> 一致：先绕旋转中心转 theta，再平移 (dx, dy)，Z 不参与。
         /// <b>调用后是否必须重新 <see cref="DownloadProgram"/></b> 由实现内部处理（见接口备注）。
         /// </remarks>
         /// <param name="dx">X 方向平移量 mm</param>

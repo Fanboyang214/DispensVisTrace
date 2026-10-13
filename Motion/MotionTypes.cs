@@ -26,20 +26,5 @@ namespace Motion
         Move
     }
 
-    /// <summary>
-    /// IO动作类型
-    /// </summary>
-    public enum IoActionType
-    {
-        /// <summary>开胶阀</summary>
-        ValveOn,
-
-        /// <summary>关胶阀</summary>
-        ValveOff,
-
-        /// <summary>延时等待</summary>
-        Delay
-    }
-
     
 }

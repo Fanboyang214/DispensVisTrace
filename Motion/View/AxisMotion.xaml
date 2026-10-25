@@ -63,6 +63,7 @@
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Margin="0,0,18,0">
+                        <!--卡连接状态灯-->
                         <Ellipse>
                             <Ellipse.Style>
                                 <Style TargetType="Ellipse" BasedOn="{StaticResource StatusDot}">
@@ -79,6 +80,7 @@
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" Margin="0,0,18,0">
+                        <!--轴运动状态灯-->
                         <Ellipse>
                             <Ellipse.Style>
                                 <Style TargetType="Ellipse" BasedOn="{StaticResource StatusDot}">
@@ -95,6 +97,7 @@
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" Margin="0,0,18,0">
+                        <!--回零状态灯-->
                         <Ellipse>
                             <Ellipse.Style>
                                 <Style TargetType="Ellipse" BasedOn="{StaticResource StatusDot}">
@@ -111,6 +114,7 @@
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal">
+                        <!--报警状态灯-->
                         <Ellipse>
                             <Ellipse.Style>
                                 <Style TargetType="Ellipse" BasedOn="{StaticResource StatusDot}">

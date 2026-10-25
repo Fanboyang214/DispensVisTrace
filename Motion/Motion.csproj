@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <PackageReference Include="HandyControl" Version="3.5.1" />
+    <!-- TrajectorySegment 的 DXF 导入工厂方法与 DxfParser 都依赖 netDxf，删掉会 CS0246 -->
     <PackageReference Include="netDxf.netstandard" Version="3.0.1" />
     <!-- View/ViewModel 里要往区域挂 View、用 BindableBase/DelegateCommand（Prism.Wpf 传递引入 Prism.Core） -->
     <PackageReference Include="Prism.Wpf" Version="8.1.97" />
@@ -19,10 +20,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Core\Core.csproj" />
     <ProjectReference Include="..\Plugins\Plugins.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="ViewModel\" />
   </ItemGroup>
 
 </Project>

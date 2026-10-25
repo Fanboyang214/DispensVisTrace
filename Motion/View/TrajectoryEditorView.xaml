@@ -1,12 +1,539 @@
-﻿<UserControl x:Class="Motion.View.TrajectoryEditorView"
+<UserControl x:Class="Motion.View.TrajectoryEditorView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:local="clr-namespace:Motion.View"
-             mc:Ignorable="d" 
-             d:DesignHeight="450" d:DesignWidth="800">
-    <Grid>
-            
+             mc:Ignorable="d"
+             d:DesignWidth="1200"
+             d:DesignHeight="760">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="MotionTheme.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <SolidColorBrush x:Key="PreviewBackground" Color="#0B1016" />
+            <SolidColorBrush x:Key="PreviewGridLine" Color="#151C23" />
+            <SolidColorBrush x:Key="PathMove" Color="#5B6B7A" />
+            <SolidColorBrush x:Key="PathDispense" Color="#22D3EE" />
+            <SolidColorBrush x:Key="PathSelected" Color="#FBBF24" />
+            <SolidColorBrush x:Key="IoOn" Color="#34D399" />
+            <SolidColorBrush x:Key="IoOff" Color="#F87171" />
+
+            <DrawingBrush x:Key="PreviewGridBrush"
+                          TileMode="Tile"
+                          Viewport="0,0,40,40"
+                          ViewportUnits="Absolute">
+                <DrawingBrush.Drawing>
+                    <GeometryDrawing>
+                        <GeometryDrawing.Geometry>
+                            <RectangleGeometry Rect="0,0,40,40" />
+                        </GeometryDrawing.Geometry>
+                        <GeometryDrawing.Pen>
+                            <Pen Brush="{StaticResource PreviewGridLine}" Thickness="1" />
+                        </GeometryDrawing.Pen>
+                    </GeometryDrawing>
+                </DrawingBrush.Drawing>
+            </DrawingBrush>
+
+            <Style x:Key="SegmentHitPath" TargetType="Path">
+                <Setter Property="Stroke" Value="Transparent" />
+                <Setter Property="StrokeThickness" Value="14" />
+                <Setter Property="Cursor" Value="Hand" />
+            </Style>
+
+            <Style x:Key="SegmentPathStyle" TargetType="Path">
+                <Setter Property="Stroke" Value="{StaticResource PathDispense}" />
+                <Setter Property="StrokeThickness" Value="2.4" />
+                <Setter Property="StrokeStartLineCap" Value="Round" />
+                <Setter Property="StrokeEndLineCap" Value="Round" />
+                <Setter Property="IsHitTestVisible" Value="False" />
+                <Setter Property="SnapsToDevicePixels" Value="True" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsMove}" Value="True">
+                        <Setter Property="Stroke" Value="{StaticResource PathMove}" />
+                        <Setter Property="StrokeDashArray" Value="4 3" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                        <Setter Property="Stroke" Value="{StaticResource PathSelected}" />
+                        <Setter Property="StrokeThickness" Value="3.4" />
+                        <Setter Property="StrokeDashArray" Value="{x:Null}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="SegmentHandle" TargetType="Ellipse">
+                <Setter Property="Width" Value="7" />
+                <Setter Property="Height" Value="7" />
+                <Setter Property="Fill" Value="{StaticResource PreviewBackground}" />
+                <Setter Property="Stroke" Value="{StaticResource TextMuted}" />
+                <Setter Property="StrokeThickness" Value="1.2" />
+                <Setter Property="IsHitTestVisible" Value="False" />
+            </Style>
+
+            <DataTemplate x:Key="LineTemplate">
+                <Canvas>
+                    <Path Data="{Binding Geometry}"
+                          Style="{StaticResource SegmentHitPath}"
+                          MouseLeftButtonDown="Segment_MouseDown" />
+                    <Path Data="{Binding Geometry}" Style="{StaticResource SegmentPathStyle}" />
+                    <Ellipse Canvas.Left="{Binding StartPoint.X}"
+                             Canvas.Top="{Binding StartPoint.Y}"
+                             Margin="-3.5,-3.5,0,0"
+                             Style="{StaticResource SegmentHandle}" />
+                    <Ellipse Canvas.Left="{Binding EndPoint.X}"
+                             Canvas.Top="{Binding EndPoint.Y}"
+                             Margin="-3.5,-3.5,0,0"
+                             Style="{StaticResource SegmentHandle}" />
+                </Canvas>
+            </DataTemplate>
+
+            <DataTemplate x:Key="ArcTemplate">
+                <Canvas>
+                    <Path Data="{Binding Geometry}"
+                          Style="{StaticResource SegmentHitPath}"
+                          MouseLeftButtonDown="Segment_MouseDown" />
+                    <Path Data="{Binding Geometry}" Style="{StaticResource SegmentPathStyle}" />
+                    <Ellipse Canvas.Left="{Binding StartPoint.X}"
+                             Canvas.Top="{Binding StartPoint.Y}"
+                             Margin="-3.5,-3.5,0,0"
+                             Style="{StaticResource SegmentHandle}" />
+                    <Ellipse Canvas.Left="{Binding EndPoint.X}"
+                             Canvas.Top="{Binding EndPoint.Y}"
+                             Margin="-3.5,-3.5,0,0"
+                             Style="{StaticResource SegmentHandle}" />
+                </Canvas>
+            </DataTemplate>
+
+            <local:SegmentTemplateSelector x:Key="SegmentSelector"
+                                           LineTemplate="{StaticResource LineTemplate}"
+                                           ArcTemplate="{StaticResource ArcTemplate}" />
+
+            <Style x:Key="SegmentListBox" TargetType="ListBox">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+                <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
+            </Style>
+
+            <Style x:Key="TrajectoryListItem" TargetType="ListBoxItem">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                <Setter Property="Padding" Value="8,6" />
+                <Setter Property="Margin" Value="0,0,0,2" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListBoxItem">
+                            <Border x:Name="ItemBorder"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="Transparent"
+                                    BorderThickness="1"
+                                    CornerRadius="5"
+                                    Padding="{TemplateBinding Padding}"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="ItemBorder" Property="Background" Value="#20272E" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="ItemBorder" Property="Background" Value="#16242B" />
+                                    <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="SmallSecondaryButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+                <Setter Property="Padding" Value="10,4" />
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="FontSize" Value="11" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Background="{StaticResource PageBackground}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- 页头 -->
+        <Border Grid.Row="0"
+                Background="{StaticResource HeaderBackground}"
+                BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="16,10">
+            <Grid>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border Background="{StaticResource Accent}" CornerRadius="4" Padding="7,3">
+                        <TextBlock Text="TR" Foreground="#06262C" FontWeight="Bold" FontSize="11" />
+                    </Border>
+                    <TextBlock Text="轨迹编辑" Style="{StaticResource PanelTitleText}" Margin="10,0,0,0" />
+                    <TextBlock Text="TRAJECTORY EDITOR · 重排 / 空移 / 开关胶 IO"
+                               Style="{StaticResource CaptionText}"
+                               Margin="10,0,0,0"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="{Binding SegmentCountText}" Style="{StaticResource CaptionText}" Margin="0,0,14,0" />
+                    <TextBlock Text="{Binding IoCountText}" Style="{StaticResource CaptionText}" Margin="0,0,14,0" />
+                    <TextBlock Text="{Binding TotalLengthText}" Style="{StaticResource CaptionText}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 内容 -->
+        <Grid Grid.Row="1" Margin="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="420" />
+            </Grid.ColumnDefinitions>
+
+            <!-- 预览 -->
+            <Border Grid.Column="0" Style="{StaticResource Panel}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Style="{StaticResource PanelHeader}">
+                        <Grid>
+                            <TextBlock Text="轨迹预览 PREVIEW" Style="{StaticResource PanelTitleText}" />
+                            <StackPanel Orientation="Horizontal"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center">
+                                <Rectangle Width="14" Height="2" Fill="{StaticResource PathDispense}" VerticalAlignment="Center" />
+                                <TextBlock Text="点胶" Style="{StaticResource CaptionText}" Margin="5,0,12,0" />
+                                <Rectangle Width="14" Height="2" Fill="{StaticResource PathMove}" VerticalAlignment="Center" />
+                                <TextBlock Text="空移" Style="{StaticResource CaptionText}" Margin="5,0,12,0" />
+                                <Ellipse Width="7" Height="7" Fill="{StaticResource IoOn}" VerticalAlignment="Center" />
+                                <TextBlock Text="开阀" Style="{StaticResource CaptionText}" Margin="5,0,12,0" />
+                                <Ellipse Width="7" Height="7" Fill="{StaticResource IoOff}" VerticalAlignment="Center" />
+                                <TextBlock Text="关阀" Style="{StaticResource CaptionText}" Margin="5,0,12,0" />
+                                <TextBlock Text="Y ↑ / X →" Style="{StaticResource CaptionText}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Row="1"
+                            Margin="10"
+                            Background="{StaticResource PreviewBackground}"
+                            BorderBrush="{StaticResource PanelBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6">
+                        <Grid Background="{StaticResource PreviewGridBrush}">
+                            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Auto"
+                                          Padding="0">
+                                <Grid Width="720" Height="520">
+                                    <ItemsControl ItemsSource="{Binding Segments}"
+                                                  ItemTemplateSelector="{StaticResource SegmentSelector}"
+                                                  Width="720"
+                                                  Height="520"
+                                                  HorizontalAlignment="Left"
+                                                  VerticalAlignment="Top">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <Canvas Width="720" Height="520" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                    </ItemsControl>
+
+                                    <ItemsControl ItemsSource="{Binding IoMarkers}"
+                                                  Width="720"
+                                                  Height="520"
+                                                  HorizontalAlignment="Left"
+                                                  VerticalAlignment="Top">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <Canvas Width="720" Height="520" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemContainerStyle>
+                                            <Style TargetType="ContentPresenter">
+                                                <Setter Property="Canvas.Left" Value="{Binding Left}" />
+                                                <Setter Property="Canvas.Top" Value="{Binding Top}" />
+                                            </Style>
+                                        </ItemsControl.ItemContainerStyle>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Width="16" Height="16" ToolTip="{Binding ToolTipText}">
+                                                    <Ellipse Width="12"
+                                                             Height="12"
+                                                             HorizontalAlignment="Center"
+                                                             VerticalAlignment="Center"
+                                                             Stroke="{StaticResource PreviewBackground}"
+                                                             StrokeThickness="1">
+                                                        <Ellipse.Style>
+                                                            <Style TargetType="Ellipse">
+                                                                <Setter Property="Fill" Value="{StaticResource IoOff}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsValveOn}" Value="True">
+                                                                        <Setter Property="Fill" Value="{StaticResource IoOn}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Ellipse.Style>
+                                                    </Ellipse>
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <StackPanel HorizontalAlignment="Center"
+                                                VerticalAlignment="Center">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasSegments}" Value="False">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <TextBlock Text="暂无轨迹段"
+                                                   Foreground="{StaticResource TextDim}"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Center" />
+                                        <TextBlock Text="点右侧“导入轨迹”载入 DXF（图层 Dispense / Move）"
+                                                   Foreground="{StaticResource TextDim}"
+                                                   FontSize="11"
+                                                   Margin="0,6,0,0"
+                                                   HorizontalAlignment="Center" />
+                                    </StackPanel>
+                                </Grid>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- 右侧 -->
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="10" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Style="{StaticResource Panel}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" Style="{StaticResource PanelHeader}">
+                            <Grid>
+                                <TextBlock Text="轨迹段 SEGMENTS" Style="{StaticResource PanelTitleText}" />
+                                <TextBlock Text="索引 = 执行顺序"
+                                           Style="{StaticResource CaptionText}"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <ListBox x:Name="SegmentsList"
+                                 Grid.Row="1"
+                                 ItemsSource="{Binding Segments}"
+                                 SelectedItem="{Binding SelectedSegment, Mode=TwoWay}"
+                                 Style="{StaticResource SegmentListBox}"
+                                 ItemContainerStyle="{StaticResource TrajectoryListItem}"
+                                 Margin="8">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="30" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Border Grid.Column="0"
+                                                Width="22"
+                                                Height="22"
+                                                CornerRadius="4"
+                                                Background="#20272E"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding DisplayIndex}"
+                                                       Foreground="{StaticResource TextMuted}"
+                                                       FontFamily="Consolas, Microsoft YaHei UI"
+                                                       FontSize="11"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center" />
+                                        </Border>
+
+                                        <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding TypeText}"
+                                                           Foreground="{StaticResource TextPrimary}"
+                                                           FontSize="12" />
+                                                <TextBlock Text=" · "
+                                                           Foreground="{StaticResource TextDim}"
+                                                           FontSize="12" />
+                                                <TextBlock Text="{Binding ModeText}"
+                                                           Foreground="{StaticResource TextMuted}"
+                                                           FontSize="12" />
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding LengthText}"
+                                                       Style="{StaticResource CaptionText}"
+                                                       Margin="0,2,0,0" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding SpeedText}"
+                                                       Foreground="{StaticResource TextMuted}"
+                                                       FontFamily="Consolas, Microsoft YaHei UI"
+                                                       FontSize="11"
+                                                       HorizontalAlignment="Right" />
+                                            <TextBlock Text="{Binding IoCountText}"
+                                                       Style="{StaticResource CaptionText}"
+                                                       Margin="0,2,0,0"
+                                                       HorizontalAlignment="Right" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <Border Grid.Row="2"
+                                BorderBrush="{StaticResource PanelBorderBrush}"
+                                BorderThickness="0,1,0,0"
+                                Padding="8">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="上移"
+                                            Command="{Binding MoveUpCommand}"
+                                            CommandParameter="{Binding SelectedSegment}"
+                                            Style="{StaticResource SmallSecondaryButton}"
+                                            Margin="0,0,6,0" />
+                                    <Button Content="下移"
+                                            Command="{Binding MoveDownCommand}"
+                                            CommandParameter="{Binding SelectedSegment}"
+                                            Style="{StaticResource SmallSecondaryButton}"
+                                            Margin="0,0,6,0" />
+                                    <Button Content="删除"
+                                            Command="{Binding DeleteCommand}"
+                                            CommandParameter="{Binding SelectedSegment}"
+                                            Style="{StaticResource SmallSecondaryButton}"
+                                            Margin="0,0,6,0" />
+                                    <Button Content="撤销"
+                                            Command="{Binding UndoCommand}"
+                                            Style="{StaticResource SmallSecondaryButton}"
+                                            Margin="0,0,6,0" />
+                                    <Button Content="重做"
+                                            Command="{Binding RedoCommand}"
+                                            Style="{StaticResource SmallSecondaryButton}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                    <Button Content="轨迹校验"
+                                            Command="{Binding ValidateCommand}"
+                                            Style="{StaticResource SmallSecondaryButton}"
+                                            Margin="0,0,6,0" />
+                                    <Button Content="导入轨迹"
+                                            Command="{Binding ImportCadCommand}"
+                                            Style="{StaticResource SmallSecondaryButton}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="2" Style="{StaticResource Panel}" MaxHeight="220" MinHeight="200">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" Style="{StaticResource PanelHeader}">
+                            <TextBlock Text="规划与告警 WARNINGS" Style="{StaticResource PanelTitleText}" />
+                        </Border>
+
+                        <ScrollViewer Grid.Row="1"
+                                      Margin="8"
+                                      VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding Warnings}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                            <Ellipse Width="6"
+                                                     Height="6"
+                                                     Fill="{StaticResource Warning}"
+                                                     Margin="0,5,7,0"
+                                                     VerticalAlignment="Top" />
+                                            <TextBlock Text="{Binding}"
+                                                       Foreground="{StaticResource TextMuted}"
+                                                       FontSize="11"
+                                                       TextWrapping="Wrap"
+                                                       Width="360" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- 状态栏 + 生成命令 -->
+        <Border Grid.Row="2"
+                Background="{StaticResource SectionBackground}"
+                BorderBrush="{StaticResource PanelBorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="12,7">
+            <Grid>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="7" Height="7" VerticalAlignment="Center">
+                        <Ellipse.Style>
+                            <Style TargetType="Ellipse">
+                                <Setter Property="Fill" Value="{StaticResource Ok}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding StatusFailed}" Value="True">
+                                        <Setter Property="Fill" Value="{StaticResource Danger}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Ellipse.Style>
+                    </Ellipse>
+                    <TextBlock Text="{Binding StatusMessage}" FontSize="11" Margin="7,0,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding StatusFailed}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource Danger}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+
+                <Button Content="生成加工轨迹（重排 + 开关胶 IO）"
+                        Command="{Binding GenerateProcessCommand}"
+                        Style="{StaticResource PrimaryButton}"
+                        HorizontalAlignment="Right"
+                        Padding="16,6" />
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>

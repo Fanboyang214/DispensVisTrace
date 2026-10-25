@@ -35,6 +35,91 @@ namespace Motion
         public List<TrajectorySegment> Segments => _program.Segments;
 
         /// <summary>
+        /// 按加工参数重排轨迹并生成提前开关胶 IO。
+        /// </summary>
+        /// <remarks>
+        /// 规划在克隆列表上完成，只有成功拿到点胶段时才一次性替换原列表并压入撤销栈；
+        /// 参数非法 / 没有点胶段时原轨迹保持不变。
+        /// </remarks>
+        public PlannedTrajectory ApplyProcess(MachiningParameters parameters)
+        {
+            ArgumentNullException.ThrowIfNull(parameters);
+
+            PlannedTrajectory plan = TrajectoryPlanner.Plan(Segments, parameters);
+            if (!plan.HasDispenseSegments || plan.Segments.Count == 0)
+            {
+                return plan;
+            }
+
+            PushSnapshot();
+            Segments.Clear();
+            Segments.AddRange(plan.Segments);
+            return plan;
+        }
+
+        /// <summary>
+        /// 用外部导入的段整体替换当前轨迹（例如 DXF 导入）。
+        /// </summary>
+        /// <remarks>
+        /// 导入是整份覆盖，并压入撤销栈；调用方传入的列表不会被修改。
+        /// </remarks>
+        public void LoadSegments(IReadOnlyList<TrajectorySegment> segments)
+        {
+            ArgumentNullException.ThrowIfNull(segments);
+
+            List<TrajectorySegment> incoming = segments
+                .Where(segment => segment is not null)
+                .ToList();
+
+            PushSnapshot();
+            Segments.Clear();
+
+            foreach (TrajectorySegment segment in incoming)
+            {
+                segment.CalcSegmentLength();
+                Segments.Add(segment);
+            }
+        }
+
+        private readonly Stack<List<TrajectorySegment>> _undoStack = new();
+        private readonly Stack<List<TrajectorySegment>> _redoStack = new();
+
+        public bool CanUndo => _undoStack.Count > 0;
+        public bool CanRedo => _redoStack.Count > 0;
+        /// <summary>
+        /// 每次修改轨迹前调用，保存当前状态到撤销栈，并清空重做栈。
+        /// </summary>
+        private void PushSnapshot()
+        {
+            _undoStack.Push(Segments.Select(seg => seg.Clone()).ToList());
+            _redoStack.Clear();
+        }
+
+        public void Undo()
+        {
+            if (!CanUndo) return;
+            _redoStack.Push(Segments.Select(seg => seg.Clone()).ToList());
+            
+            ReplaceAll(_undoStack.Pop());
+        }
+
+        public void Redo()
+        {
+            if (!CanRedo) return;
+            _undoStack.Push(Segments.Select(seg => seg.Clone()).ToList());
+            
+            ReplaceAll(_redoStack.Pop());
+        }
+        private void ReplaceAll(List<TrajectorySegment> snapshot)
+        {
+            Segments.Clear();
+            Segments.AddRange(snapshot);
+            
+        }
+
+
+
+        /// <summary>
         /// 拖拽重排：把 <paramref name="oldIndex"/> 处的段移到 <paramref name="newIndex"/>。
         /// </summary>
         /// <param name="oldIndex">被移动段的当前下标</param>
@@ -45,6 +130,7 @@ namespace Motion
         /// </remarks>
         public void MoveSegment(int oldIndex, int newIndex)
         {
+            PushSnapshot();
             List<TrajectorySegment> segments = Segments;
             CheckIndex(oldIndex, segments.Count, nameof(oldIndex));
 
@@ -68,6 +154,7 @@ namespace Motion
         /// <param name="index">要删除的段下标</param>
         public void RemoveSegment(int index)
         {
+            PushSnapshot();
             List<TrajectorySegment> segments = Segments;
             CheckIndex(index, segments.Count, nameof(index));
 
@@ -79,6 +166,7 @@ namespace Motion
         /// <param name="seg">要插入的段</param>
         public void InsertSegment(int index, TrajectorySegment seg)
         {
+            PushSnapshot();
             ArgumentNullException.ThrowIfNull(seg);
 
             List<TrajectorySegment> segments = Segments;
@@ -104,6 +192,7 @@ namespace Motion
         /// </remarks>
         public void BatchSetProperty(List<int> segIndexList, Action<TrajectorySegment> setAction)
         {
+            PushSnapshot();
             ArgumentNullException.ThrowIfNull(segIndexList);
             ArgumentNullException.ThrowIfNull(setAction);
 
@@ -134,11 +223,12 @@ namespace Motion
         /// <item>IO 触发越界：距离为负或超出本段长度，卡按段内行程触发时永远等不到；</item>
         /// <item>IO 时钟顺序：同段内触发距离未递增，实际触发次序会和列表顺序不一致；</item>
         /// <item>圆弧几何：半径非正、圆心与起点重合、整圆未拆分；</item>
-        /// <item>空移段开阀：空移不该出胶。</item>
+        /// <item>空移段开阀：下一段不是点胶段时空移出胶会滴在过渡路径上。</item>
         /// </list>
         /// <para>
-        /// <b>空移段允许带 IO</b>（例如提前开阀 / 提前关阀），所以不再把"Move 段存在 IO 触发"
-        /// 当作告警；只有"空移段开阀"这种会滴胶的动作用才提示。
+        /// <b>空移段允许带 IO</b>：规划器会在“空移段末端 → 下一点胶段”按
+        /// 空移速度 × 开阀响应生成提前开阀，这类触发是允许的；
+        /// 只有下一段不是点胶段（或空移段中途开阀）才会滴胶。
         /// </para>
         /// </remarks>
         public List<string> ValidateAllSegments()
@@ -158,7 +248,7 @@ namespace Motion
 
                 if (seg == null)
                 {
-                    warnings.Add($"第 {i} 段为 null。");
+                    warnings.Add($"第 {i + 1} 段为 null。");
                     continue;
                 }
 
@@ -167,16 +257,20 @@ namespace Motion
 
                 if (double.IsNaN(seg.Speed) || double.IsInfinity(seg.Speed) || seg.Speed <= 0)
                 {
-                    warnings.Add($"第 {i} 段速度非法（{seg.Speed}）：卡无法规划。");
+                    warnings.Add($"第 {i + 1} 段速度非法（{seg.Speed}）：卡无法规划。");
                 }
 
                 if (seg.MotionMode == MotionMode.Dispense &&
                     (double.IsNaN(seg.WorkZ) || double.IsInfinity(seg.WorkZ) || seg.WorkZ <= 0))
                 {
-                    warnings.Add($"第 {i} 段是点胶段但工作高度 WorkZ={seg.WorkZ} 非法。");
+                    warnings.Add($"第 {i + 1} 段是点胶段但工作高度 WorkZ={seg.WorkZ} 非法。");
                 }
 
-                ValidateIoTriggers(i, seg, warnings);
+                ValidateIoTriggers(
+                    i,
+                    seg,
+                    i + 1 < segments.Count ? segments[i + 1] : null,
+                    warnings);
                 ValidateArc(i, seg, warnings);
 
                 // 端点连续性：索引顺序就是执行顺序，相邻段必须首尾相接
@@ -186,7 +280,7 @@ namespace Motion
                     if (prev != null && !IsSamePlace(prev.EndPt, seg.StartPt))
                     {
                         warnings.Add(
-                            $"第 {i - 1} 段终点 {prev.EndPt} 与第 {i} 段起点 {seg.StartPt} 不连续：" +
+                            $"第 {i} 段终点 {prev.EndPt} 与第 {i + 1} 段起点 {seg.StartPt} 不连续：" +
                             "卡会在两段之间额外走一条直线。");
                     }
                 }
@@ -196,7 +290,11 @@ namespace Motion
         }
 
         /// <summary>单段 IO 触发校验</summary>
-        private static void ValidateIoTriggers(int index, TrajectorySegment seg, List<string> warnings)
+        private static void ValidateIoTriggers(
+            int index,
+            TrajectorySegment seg,
+            TrajectorySegment? next,
+            List<string> warnings)
         {
             double previousDistance = double.NegativeInfinity;
 
@@ -205,24 +303,24 @@ namespace Motion
                 IoTrigger trigger = seg.IoTriggers[k];
                 if (trigger == null)
                 {
-                    warnings.Add($"第 {index} 段第 {k} 个 IO 触发为 null。");
+                    warnings.Add($"第 {index + 1} 段第 {k + 1} 个 IO 触发为 null。");
                     continue;
                 }
 
                 if (double.IsNaN(trigger.DistanceOnSegment) || trigger.DistanceOnSegment < 0)
                 {
-                    warnings.Add($"第 {index} 段第 {k} 个 IO 触发距离非法（{trigger.DistanceOnSegment}）。");
+                    warnings.Add($"第 {index + 1} 段第 {k + 1} 个 IO 触发距离非法（{trigger.DistanceOnSegment}）。");
                 }
                 else if (trigger.DistanceOnSegment > seg.SegmentLength)
                 {
                     warnings.Add(
-                        $"第 {index} 段第 {k} 个 IO 触发距离 {trigger.DistanceOnSegment:F4} 超出本段长度 " +
+                        $"第 {index + 1} 段第 {k + 1} 个 IO 触发距离 {trigger.DistanceOnSegment:F4} 超出本段长度 " +
                         $"{seg.SegmentLength:F4}：卡按段内行程触发时会永远等不到。");
                 }
                 else if (trigger.DistanceOnSegment < previousDistance)
                 {
                     warnings.Add(
-                        $"第 {index} 段第 {k} 个 IO 触发距离 {trigger.DistanceOnSegment:F4} 小于前一个 " +
+                        $"第 {index + 1} 段第 {k + 1} 个 IO 触发距离 {trigger.DistanceOnSegment:F4} 小于前一个 " +
                         $"{previousDistance:F4}：实际触发次序会与列表顺序不一致。");
                 }
 
@@ -231,10 +329,16 @@ namespace Motion
                     previousDistance = trigger.DistanceOnSegment;
                 }
 
-                // 空移段允许带 IO（提前开阀 / 提前关阀），但空移段开阀会沿路滴胶
+                // 空移段允许带 IO（提前开阀 / 提前关阀），但只有“下一段是点胶段”的
+                // 段末提前开阀是规划器有意生成的；其余空移开阀会沿路滴胶
                 if (seg.MotionMode == MotionMode.Move && trigger.Action == IoActionType.ValveOn)
                 {
-                    warnings.Add($"第 {index} 段是空移段却要开胶阀（行程 {trigger.DistanceOnSegment:F4}）：空移出胶会滴在过渡路径上。");
+                    if (next is null || next.MotionMode != MotionMode.Dispense)
+                    {
+                        warnings.Add(
+                            $"第 {index + 1} 段是空移段却要开胶阀（行程 {trigger.DistanceOnSegment:F4}），" +
+                            "且下一段不是点胶段：空移出胶会滴在过渡路径上。");
+                    }
                 }
             }
         }
@@ -249,7 +353,7 @@ namespace Motion
 
             if (double.IsNaN(seg.Radius) || double.IsInfinity(seg.Radius) || seg.Radius <= 0)
             {
-                warnings.Add($"第 {index} 段圆弧半径非法（{seg.Radius}）。");
+                warnings.Add($"第 {index + 1} 段圆弧半径非法（{seg.Radius}）。");
             }
 
             double centerToStart = Math.Sqrt(
@@ -257,7 +361,7 @@ namespace Motion
                 (seg.StartPt.Y - seg.ArcCenter.Y) * (seg.StartPt.Y - seg.ArcCenter.Y));
             if (double.IsNaN(centerToStart) || centerToStart <= 0)
             {
-                warnings.Add($"第 {index} 段圆弧的圆心与起点重合，几何非法（圆心 {seg.ArcCenter}）。");
+                warnings.Add($"第 {index + 1} 段圆弧的圆心与起点重合，几何非法（圆心 {seg.ArcCenter}）。");
                 return;
             }
 
@@ -265,7 +369,7 @@ namespace Motion
             if (sweep <= 0 || sweep >= 2 * Math.PI - 1e-9)
             {
                 warnings.Add(
-                    $"第 {index} 段圆弧是整圆（起止角相等）：卡无法用单段圆弧表达整圈，" +
+                    $"第 {index + 1} 段圆弧是整圆（起止角相等）：卡无法用单段圆弧表达整圈，" +
                     "需先拆成两段半圆弧。");
             }
         }
@@ -274,6 +378,7 @@ namespace Motion
             Math.Abs(a.X - b.X) <= ContinuityEpsilon &&
             Math.Abs(a.Y - b.Y) <= ContinuityEpsilon;
 
+       
         private static void CheckIndex(int index, int count, string paramName)
         {
             if (index < 0 || index >= count)
@@ -286,3 +391,5 @@ namespace Motion
         }
     }
 }
+
+

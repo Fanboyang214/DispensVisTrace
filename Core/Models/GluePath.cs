@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -18,7 +18,7 @@ namespace Core.Models
         public List<PointF> Points { get; }
 
         /// <summary>
-        /// 模板匹配置信度（来自ProductPose.Score）
+        /// 模板匹配置信度（来自定位引擎的匹配分 ILocateEngine.LastScore）
         /// </summary>
         public double Confidence { get; }
 

@@ -39,6 +39,7 @@ namespace Motion.ViewModel
         private readonly ILogService? _log;
         private readonly Dispatcher? _dispatcher;
         private readonly System.Threading.Timer? _pollTimer;
+        private readonly MachiningParametersViewModel _machining;
 
         private bool _disposed;
         private bool _connected;
@@ -80,6 +81,11 @@ namespace Motion.ViewModel
             ZAxis = new AxisMotionViewModel(2, "Z", _card, axisLog);
             Axes = new[] { XAxis, YAxis, ZAxis };
 
+            // 加工参数与轨迹编辑器共用同一个实例：在本页改的参数，生成轨迹时立即生效
+            _machining = TryResolve<MachiningParametersViewModel>(containerProvider)
+                ?? new MachiningParametersViewModel();
+            TrajectoryEditor = TryResolve<TrajectoryEditorViewModel>(containerProvider);
+
             SaveLookaheadCommand = new DelegateCommand(SaveLookahead, () => IsConnected);
             SaveZTrackSmoothCommand = new DelegateCommand(SaveZTrackSmooth, () => IsConnected);
 
@@ -100,6 +106,12 @@ namespace Motion.ViewModel
         public AxisMotionViewModel ZAxis { get; }
 
         public IReadOnlyList<AxisMotionViewModel> Axes { get; }
+
+        /// <summary>加工参数（高度 / 速度 / 胶阀响应时间），供“加工参数”页与轨迹生成共用。</summary>
+        public MachiningParametersViewModel Machining => _machining;
+
+        /// <summary>轨迹编辑器视图模型；组合根未注册时为 null（页签显示为空）。</summary>
+        public TrajectoryEditorViewModel? TrajectoryEditor { get; }
 
         // ───────────── 连接状态 ─────────────
 

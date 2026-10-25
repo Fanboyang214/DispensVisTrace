@@ -2,6 +2,7 @@ using Core.Acquisition;
 using Core.Bridge;
 using Core.Logging;
 using Core.Models;
+using Core.Motion;
 using Core.Vision;
 using System;
 using System.Collections.Generic;
@@ -172,21 +173,22 @@ namespace Vision.Halcon
                 return;
             }
 
-            ProductPose? pose = engine.FindProductPose(image);
-            if (pose is null)
+            PoseOffset? offset = engine.FindPoseOffset(image);
+            if (offset is null)
             {
                 _log.Warn("{Camera} 未在图像中定位到产品（产品 {Product}，图像 {Path}）",
                     frame.CameraName, image.SerialNumber ?? "(无)", image.SourcePath);
                 return;
             }
 
-            _log.Info("{Camera} 定位完成：{Pose}（产品 {Product}）",
-                frame.CameraName, pose, image.SerialNumber ?? "(无)");
+            _log.Info("{Camera} 定位完成：ΔX={DeltaX:F3} ΔY={DeltaY:F3} mm，Δθ={DeltaThetaDeg:F2}°（产品 {Product}）",
+                frame.CameraName, offset.Value.DeltaX, offset.Value.DeltaY,
+                offset.Value.DeltaTheta * 180.0 / Math.PI, image.SerialNumber ?? "(无)");
 
             // 置信度就是与配置阈值相比的那个值（定位 = 模板匹配置信度）
-            PublishConfidence(frame, CameraDataPoints.LocateConfidence, pose.Score);
+            PublishConfidence(frame, CameraDataPoints.LocateConfidence, engine.LastScore);
 
-            ProductLocated?.Invoke(this, new ProductLocatedEventArgs(frame, image, pose));
+            ProductLocated?.Invoke(this, new ProductLocatedEventArgs(frame, image, offset.Value));
         }
 
         /// <summary>检测：引擎自己负责结果落库 / 上报，这里只保证被调到且异常不外溢。</summary>
@@ -273,7 +275,7 @@ namespace Vision.Halcon
 
     /// <summary>定位完成事件参数。</summary>
     public sealed record ProductLocatedEventArgs(
-        CameraFrameEventArgs Frame, InspectionImage Image, ProductPose Pose);
+        CameraFrameEventArgs Frame, InspectionImage Image, PoseOffset Offset);
 
     /// <summary>检测完成事件参数。</summary>
     public sealed record InspectionCompletedEventArgs(

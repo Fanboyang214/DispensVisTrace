@@ -19,7 +19,15 @@ namespace Motion
         public void RegisterTypes(IContainerRegistry containerRegistry)
         {
             containerRegistry.RegisterSingleton<MotionViewModel>();
+
+            // 轨迹编辑 / 加工参数：整页共用同一份配方与参数，重新生成时不会拿到旧快照
+            containerRegistry.RegisterSingleton<DispenseProgram>();
+            containerRegistry.RegisterSingleton<TrajectoryEditor>();
+            containerRegistry.RegisterSingleton<MachiningParametersViewModel>();
+            containerRegistry.RegisterSingleton<TrajectoryEditorViewModel>();
+
             containerRegistry.RegisterForNavigation<View.Motion, MotionViewModel>();
+            containerRegistry.RegisterForNavigation<View.TrajectoryEditorView, TrajectoryEditorViewModel>();
         }
 
         public void OnInitialized(IContainerProvider containerProvider)

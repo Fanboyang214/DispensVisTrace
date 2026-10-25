@@ -746,6 +746,7 @@ namespace Motion.ViewModel
             LastOperationFailed = failed;
         }
 
+        //通知所有命令检查修改可执行状态
         private void RaiseAllCanExecuteChanged()
         {
             ReadParametersCommand.RaiseCanExecuteChanged();

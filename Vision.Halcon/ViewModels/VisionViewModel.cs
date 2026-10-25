@@ -2,6 +2,7 @@ using Core.Acquisition;
 using Core.Bridge;
 using Core.Logging;
 using Core.Models;
+using Core.Motion;
 using Core.Motion.Zmotion;
 using Core.Vision;
 using Prism.Ioc;
@@ -82,47 +83,49 @@ namespace Vision.Halcon.ViewModels
         }
     }
 
-    /// <summary>定位画面：产品号 + 位姿（行 / 列 / 偏转角 / 匹配分）。</summary>
+    /// <summary>定位画面：产品号 + 位姿偏移（ΔX / ΔY / Δθ / 匹配分）。</summary>
     public sealed class LocatePanelViewModel : VisionPanelViewModel
     {
-        private double? _row;
-        private double? _column;
-        private double? _angleDeg;
+        private double? _deltaX;
+        private double? _deltaY;
+        private double? _deltaThetaDeg;
         private double? _score;
 
         public LocatePanelViewModel(string cameraName) : base(cameraName)
         {
         }
 
-        public double? Row
+        /// <summary>相对示教位的 X 平移量（mm）。</summary>
+        public double? DeltaX
         {
-            get => _row;
+            get => _deltaX;
             internal set
             {
-                if (SetProperty(ref _row, value))
+                if (SetProperty(ref _deltaX, value))
                 {
                     RaisePropertyChanged(nameof(HasPose));
                 }
             }
         }
 
-        public double? Column
+        /// <summary>相对示教位的 Y 平移量（mm）。</summary>
+        public double? DeltaY
         {
-            get => _column;
+            get => _deltaY;
             internal set
             {
-                if (SetProperty(ref _column, value))
+                if (SetProperty(ref _deltaY, value))
                 {
                     RaisePropertyChanged(nameof(HasPose));
                 }
             }
         }
 
-        /// <summary>偏转角（度）。</summary>
-        public double? AngleDeg
+        /// <summary>相对示教位的绕 Z 旋转角（度）。</summary>
+        public double? DeltaThetaDeg
         {
-            get => _angleDeg;
-            internal set => SetProperty(ref _angleDeg, value);
+            get => _deltaThetaDeg;
+            internal set => SetProperty(ref _deltaThetaDeg, value);
         }
 
         /// <summary>模板匹配得分（与配方 minScore 相比的那个值）。</summary>
@@ -132,15 +135,15 @@ namespace Vision.Halcon.ViewModels
             internal set => SetProperty(ref _score, value);
         }
 
-        /// <summary>是否已经有可用位姿（决定状态标签是否转绿）。</summary>
-        public bool HasPose => _row.HasValue && _column.HasValue;
+        /// <summary>是否已经拿到可用偏移（决定状态标签是否转绿）。</summary>
+        public bool HasPose => _deltaX.HasValue && _deltaY.HasValue;
 
-        /// <summary>换了一颗新产品：把上一颗的位姿清掉，免得界面把旧位姿当成新产品的。</summary>
+        /// <summary>换了一颗新产品：把上一颗的偏移清掉，免得界面把旧偏移当成新产品的。</summary>
         internal void ClearPose()
         {
-            Row = null;
-            Column = null;
-            AngleDeg = null;
+            DeltaX = null;
+            DeltaY = null;
+            DeltaThetaDeg = null;
             Score = null;
         }
     }
@@ -309,6 +312,7 @@ namespace Vision.Halcon.ViewModels
         private readonly IImageReadySubscriber? _bus;
         private readonly VisionFrameWorker? _worker;
         private readonly IInspectEngine? _inspectEngine;
+        private readonly ILocateEngine? _locateEngine;
         private readonly IZmotionCard? _card;
         private readonly System.Threading.Timer? _axisTimer;
 
@@ -325,6 +329,7 @@ namespace Vision.Halcon.ViewModels
 
             _card = TryResolve<IZmotionCard>(containerProvider);
             _inspectEngine = TryResolve<IInspectEngine>(containerProvider);
+            _locateEngine = TryResolve<ILocateEngine>(containerProvider);
 
             string locateCamera = FindCamera(CameraRole.Locate);
             string inspectCamera = FindCamera(CameraRole.Inspect);
@@ -473,7 +478,7 @@ namespace Vision.Halcon.ViewModels
                 return;
             }
 
-            ProductPose pose = args.Pose;
+            PoseOffset offset = args.Offset;
             string? productId = args.Image.SerialNumber;
 
             OnUi(() =>
@@ -483,10 +488,10 @@ namespace Vision.Halcon.ViewModels
                     Locate.ProductId = productId;
                 }
 
-                Locate.Row = pose.CenterRow;
-                Locate.Column = pose.CenterCol;
-                Locate.AngleDeg = pose.AngleDeg;
-                Locate.Score = pose.Score;
+                Locate.DeltaX = offset.DeltaX;
+                Locate.DeltaY = offset.DeltaY;
+                Locate.DeltaThetaDeg = offset.DeltaTheta * 180.0 / Math.PI;
+                Locate.Score = _locateEngine?.LastScore;
                 Locate.StatusText = "已定位";
             });
         }

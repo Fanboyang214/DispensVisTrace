@@ -92,6 +92,205 @@
                 <local:AxisMotion DataContext="{Binding ZAxis}" Loaded="AxisMotion_Loaded" />
             </TabItem>
 
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="8" Height="8" Fill="{StaticResource AccentGreen}" VerticalAlignment="Center" />
+                        <TextBlock Text="加工参数" Margin="7,0,0,0" />
+                    </StackPanel>
+                </TabItem.Header>
+                <Grid Margin="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="320" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="*" MinWidth="320" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 高度与速度 -->
+                    <Border Grid.Column="0" Style="{StaticResource Panel}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Border Grid.Row="0" Style="{StaticResource PanelHeader}">
+                                <TextBlock Text="高度与速度 HEIGHT &amp; SPEED" Style="{StaticResource PanelTitleText}" />
+                            </Border>
+
+                            <StackPanel Grid.Row="1" Margin="14">
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="点胶高度 WorkZ" Style="{StaticResource FieldLabelText}" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1"
+                                             Style="{StaticResource NumericInput}"
+                                             Text="{Binding Machining.WorkZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Grid.Column="2" Text="mm" Style="{StaticResource UnitText}" VerticalAlignment="Center" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="抬刀高度 LiftZ" Style="{StaticResource FieldLabelText}" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1"
+                                             Style="{StaticResource NumericInput}"
+                                             Text="{Binding Machining.LiftZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Grid.Column="2" Text="mm" Style="{StaticResource UnitText}" VerticalAlignment="Center" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="点胶速度" Style="{StaticResource FieldLabelText}" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1"
+                                             Style="{StaticResource NumericInput}"
+                                             Text="{Binding Machining.DispenseSpeed, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Grid.Column="2" Text="mm/s" Style="{StaticResource UnitText}" VerticalAlignment="Center" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="空移速度" Style="{StaticResource FieldLabelText}" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1"
+                                             Style="{StaticResource NumericInput}"
+                                             Text="{Binding Machining.MoveSpeed, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Grid.Column="2" Text="mm/s" Style="{StaticResource UnitText}" VerticalAlignment="Center" />
+                                </Grid>
+
+                                <Button Content="恢复默认参数"
+                                        Command="{Binding Machining.ResetCommand}"
+                                        Style="{StaticResource SecondaryButton}"
+                                        HorizontalAlignment="Left"
+                                        Margin="0,14,0,0" />
+                            </StackPanel>
+
+                            <Border Grid.Row="2"
+                                    BorderBrush="{StaticResource PanelBorderBrush}"
+                                    BorderThickness="0,1,0,0"
+                                    Padding="14,10">
+                                <TextBlock Text="生成轨迹时会把所有点胶段的 WorkZ / Speed 统一为本页值；空移段使用抬刀高度与空移速度。"
+                                           Style="{StaticResource CaptionText}"
+                                           TextWrapping="Wrap" />
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <!-- 胶阀时序 -->
+                    <Border Grid.Column="2" Style="{StaticResource Panel}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Border Grid.Row="0" Style="{StaticResource PanelHeader}">
+                                <TextBlock Text="胶阀时序 VALVE TIMING" Style="{StaticResource PanelTitleText}" />
+                            </Border>
+
+                            <StackPanel Grid.Row="1" Margin="14">
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="170" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="开阀响应时间" Style="{StaticResource FieldLabelText}" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1"
+                                             Style="{StaticResource NumericInput}"
+                                             Text="{Binding Machining.ValveOpenResponseMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Grid.Column="2" Text="ms" Style="{StaticResource UnitText}" VerticalAlignment="Center" />
+                                </Grid>
+
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="170" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="关阀响应时间" Style="{StaticResource FieldLabelText}" VerticalAlignment="Center" />
+                                    <TextBox Grid.Column="1"
+                                             Style="{StaticResource NumericInput}"
+                                             Text="{Binding Machining.ValveCloseResponseMs, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Grid.Column="2" Text="ms" Style="{StaticResource UnitText}" VerticalAlignment="Center" />
+                                </Grid>
+
+                                <Border Style="{StaticResource ReadoutBox}" Margin="0,12,0,0">
+                                    <Grid>
+                                        <TextBlock Text="开阀提前量" Style="{StaticResource CaptionText}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Machining.OpenLeadText}"
+                                                   Style="{StaticResource ReadoutValueText}"
+                                                   HorizontalAlignment="Right" />
+                                    </Grid>
+                                </Border>
+
+                                <Border Style="{StaticResource ReadoutBox}" Margin="0,8,0,0">
+                                    <Grid>
+                                        <TextBlock Text="关阀提前量" Style="{StaticResource CaptionText}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Machining.CloseLeadText}"
+                                                   Style="{StaticResource ReadoutValueText}"
+                                                   HorizontalAlignment="Right" />
+                                    </Grid>
+                                </Border>
+
+                                <TextBlock TextWrapping="Wrap"
+                                           Margin="0,14,0,0"
+                                           Style="{StaticResource CaptionText}">
+                                    开阀：空移段末端，触发距离 = 段长 − 空移速度 × 开阀响应；关阀：点胶段末端，
+                                    触发距离 = 段长 − 点胶速度 × 关阀响应。IO 交给运动卡 PSO 按段内距离触发；
+                                    本页参数不写入控制器。
+                                </TextBlock>
+                            </StackPanel>
+
+                            <Border Grid.Row="2"
+                                    BorderBrush="{StaticResource PanelBorderBrush}"
+                                    BorderThickness="0,1,0,0"
+                                    Padding="14,10">
+                                <TextBlock Text="{Binding Machining.ValidationMessage}"
+                                           TextWrapping="Wrap"
+                                           FontSize="11">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Machining.ValidationFailed}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource Danger}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem>
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="8" Height="8" Fill="{StaticResource AccentAmber}" VerticalAlignment="Center" />
+                        <TextBlock Text="轨迹编辑" Margin="7,0,0,0" />
+                    </StackPanel>
+                </TabItem.Header>
+                <local:TrajectoryEditorView DataContext="{Binding TrajectoryEditor}" />
+            </TabItem>
+
             <TabItem Header="前瞻设置">
                 <Grid Margin="12">
                     <Grid.ColumnDefinitions>

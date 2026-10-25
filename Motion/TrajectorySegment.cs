@@ -64,7 +64,10 @@ namespace Motion
 
         #region IO触发列表
 
-        /// <summary>本段 IO 触发事件列表，Move 段禁止存在任何触发</summary>
+        /// <summary>
+        /// 本段 IO 触发事件列表。空移段允许在段末携带提前开阀 / 提前关阀触发；
+        /// 点胶段中途开阀仍会被校验告警。
+        /// </summary>
         public List<IoTrigger> IoTriggers = new List<IoTrigger>();
 
         #endregion

@@ -58,6 +58,16 @@ namespace Vision.Halcon
         private bool _subpixelAccuracy;
 
 
+        /// <summary>
+        /// 最近一次 <see cref="FindPoseOffset"/> 的模板匹配分（与配置 minScore 相比的那个值）。
+        /// 用单独的属性承载，是因为定位结果已经换成 <see cref="PoseOffset"/>，里面没有 score 字段。
+        /// </summary>
+        public double? LastScore { get; private set; }
+
+        // ========== 已注销：胶路导入 / 位姿预变换 ==========
+        // 胶路轨迹（配方加载、基轨迹缓存、位姿叠加、点列投影）归 Motion 模块负责，
+        // 视觉侧只输出 PoseOffset。下面保留原实现以便回溯，不再参与编译。
+        /*
         /// <summary>配方文件路径（Motion 落盘的点胶配方；DXF 由 Plugins.Driver.DXF.DxfParser 在导入期解析）。</summary>
         private string _recipePath;
 
@@ -83,19 +93,19 @@ namespace Vision.Halcon
 
         /// <summary>工件位姿求解器（由容器注入，默认取 <c>Motion.PoseCompensator</c>）。</summary>
         private readonly IPoseOffsetSolver _poseSolver;
-
-
-
-
+        */
 
 
         public HalconLocateEngine(IContainerProvider containerProvider)
         {
             _logService = containerProvider.Resolve<ILogService>();
             _calibrationTransform = containerProvider.Resolve<ICalibrationTransform>();
-            _poseSolver = containerProvider.Resolve<IPoseOffsetSolver>();
+            // 已注销：位姿补偿归 Motion，视觉侧不再持有 IPoseOffsetSolver。
+            // 该服务原本并未在容器注册，这里的 Resolve 会让引擎构造直接抛异常。
+            //_poseSolver = containerProvider.Resolve<IPoseOffsetSolver>();
 #if DEBUG
-            VerifyCadPathMath();
+            // 已注销：胶路几何自检随胶路逻辑一起下线（VerifyCadPathMath 见文件末尾注释块）。
+            //VerifyCadPathMath();
 #endif
         }
         public bool Initialize(LocateConfig config)
@@ -179,6 +189,9 @@ namespace Vision.Halcon
             _metric = hasMetric ? Convert.ToString(metricObj) : "use_polarity";
             _subpixelAccuracy = hasSubpixelAccuracy ? Convert.ToBoolean(subpixelAccuracyObj) : true;
 
+            // 已注销：CadImport（recipePath / transformByPose / sampleStepMm）只服务于胶路导入，
+            // 胶路轨迹归 Motion 负责，视觉侧不再读取这几个键。
+            /*
             object recipePathObj = null;
             object transformByPoseObj = null;
             object sampleStepObj = null;
@@ -193,6 +206,7 @@ namespace Vision.Halcon
 
             // 配置可能已经换了配方文件/采样步长，缓存的基准轨迹作废
             _baseProgram = null;
+            */
 
             return true;   
         }
@@ -255,8 +269,19 @@ namespace Vision.Halcon
             }
         }
 
-        public ProductPose? FindProductPose(InspectionImage image)
+        /// <summary>
+        /// 求产品相对示教位的刚体偏移：模板匹配给出像素级行列 + 角度，再用标定换算成机械坐标（mm / 弧度）。
+        /// <para>
+        /// 换算依据：HALCON 形状模型的参考点默认是模板图像的（0,0），
+        /// 所以 FindShapeModel 返回的 (column,row) 就是"示教原点在当前位姿下落到了哪个像素"。
+        /// 于是 Δ = P(当前) - P(示教原点)，旋转中心取 P(示教原点)。
+        /// 若模板用 SetShapeModelOrigin 改过参考点，这里的示教原点要跟着改。
+        /// </para>
+        /// </summary>
+        public PoseOffset? FindPoseOffset(InspectionImage image)
         {
+            LastScore = null;
+
             HalconImageLease lease;
             try
             {
@@ -309,14 +334,31 @@ namespace Vision.Halcon
                     out score
                 );
 
-                return new ProductPose
-                {
-                    CenterRow = row.D,
-                    CenterCol = column.D,
+                // 匹配分先落下来：即使下面换算标定失败，调用方仍拿得到"匹配得怎么样"
+                LastScore = score.D;
 
-                    AngleRad = angle.D,
-                    Score = score.D
-                };
+                // 未标定时 PixelToWorld 会抛，先判掉：这种情况是配置问题，不是匹配问题
+                if (!_calibrationTransform.IsCalibration)
+                {
+                    _logService?.Log(LogLevel.Warn, "定位结果无法换算为机械坐标：标定无效");
+                    return null;
+                }
+
+                // 示教原点（模板图像 (0,0)）在当前图像里落到的机械坐标 = 当前位姿
+                (double nowWorldX, double nowWorldY) = _calibrationTransform.PixelToWorld(column.D, row.D);
+
+                // 示教原点在示教位时的机械坐标；形状模型参考点就是模板图像原点，故取 (0,0)
+                (double refWorldX, double refWorldY) = _calibrationTransform.PixelToWorld(0, 0);
+
+                // 角度：角度标定是"像素角 → 机械角"的线性映射，减掉 (0) 的映射值即得偏转量
+                double nowAngle = _calibrationTransform.AnglePixelToWorld(angle.D);
+                double taughtAngle = _calibrationTransform.AnglePixelToWorld(0);
+
+                return new PoseOffset(
+                    nowWorldX - refWorldX,
+                    nowWorldY - refWorldY,
+                    nowAngle - taughtAngle,
+                    new Point3D(refWorldX, refWorldY, 0));
 
             } catch (Exception ex)
             {
@@ -366,6 +408,13 @@ namespace Vision.Halcon
         }
 
 
+        // ========== 已注销：基轨迹加载 + 位姿叠加 ==========
+        //
+        // 胶路轨迹（配方加载、基轨迹缓存、位姿叠加、点列投影、路径简化）归 Motion 模块负责：
+        // 轨迹预下载到运动卡、卡内实时变换，视觉侧只输出 PoseOffset。
+        // 下面整段保留原实现以便回溯，不再参与编译。
+
+        /*
         // ========== ③ 基轨迹加载 + 位姿叠加 ==========
 
         #region 基轨迹
@@ -554,12 +603,17 @@ namespace Vision.Halcon
 
             return filtered;
         }
+        */
 
 
-        /// <summary>定位入口：异步执行图像质量门限与模板匹配。</summary>
-        public Task<ProductPose?> LocateAsync(InspectionImage image) => Task.Run(() => FindProductPose(image));
+        /// <summary>定位入口：异步执行图像质量门限与模板匹配，产出相对示教位的位姿偏移。</summary>
+        public Task<PoseOffset?> LocateAsync(InspectionImage image) => Task.Run(() => FindPoseOffset(image));
 
 
+        // ========== 已注销：CAD 路径几何自检 ==========
+        // TransformByPose / SimplifyPath / FilterShortSegments 随胶路逻辑一起下线，
+        // 对应的自检也一并注销（恢复胶路逻辑时把这段一起放回去）。
+        /*
 #if DEBUG
         /// <summary>
         /// CAD 路径几何算法的自检。几何符号或阈值写反时，调试期第一次构造引擎就会断言失败，
@@ -607,6 +661,7 @@ namespace Vision.Halcon
                 "Clone 未复制 IO 触发列表，副本与基准共享同一份触发数据");
         }
 #endif
+        */
 
 
         public void Dispose() => _disposed = true;

@@ -2,6 +2,7 @@ using Core.Acquisition;
 using Core.Bridge;
 using Core.Logging;
 using Core.Models;
+using Core.Motion;
 using Core.Vision;
 using System;
 using System.Collections.Generic;
@@ -85,8 +86,10 @@ public static class VisionFrameWorkerSelfCheck
             if (located.Count == 1)
             {
                 Expect(
-                    located[0].Pose.CenterRow == 111 && located[0].Pose.CenterCol == 222,
-                    "定位姿态应原样透出");
+                    Math.Abs(located[0].Offset.DeltaX - 1.1) < 1e-9
+                    && Math.Abs(located[0].Offset.DeltaY - 2.2) < 1e-9
+                    && Math.Abs(located[0].Offset.DeltaTheta - Math.PI / 2) < 1e-9,
+                    "定位偏移应原样透出");
                 Expect(
                     located[0].Image.SourcePath == imagePath,
                     "取图路径应来自总线事件（像素不进总线，由引擎按路径读）");
@@ -344,7 +347,7 @@ public static class VisionFrameWorkerSelfCheck
             return new ImageQualityResult { IsPass = QualityPasses, Score = 0.98 };
         }
 
-        public ProductPose? FindProductPose(InspectionImage image)
+        public PoseOffset? FindPoseOffset(InspectionImage image)
         {
             PoseCalls++;
 
@@ -353,10 +356,12 @@ public static class VisionFrameWorkerSelfCheck
                 throw new InvalidOperationException("引擎未初始化（替身故意抛）");
             }
 
-            return new ProductPose { CenterRow = 111, CenterCol = 222, AngleRad = Math.PI / 2, Score = 0.97 };
+            LastScore = 0.97;
+            return new PoseOffset(1.1, 2.2, Math.PI / 2, new Point3D(0, 0, 0));
         }
 
-        public GluePath LoadCadGluePath(ProductPose pose) => new(new List<PointF>(), pose.Score);
+        /// <inheritdoc />
+        public double? LastScore { get; private set; }
 
         public void Dispose()
         {

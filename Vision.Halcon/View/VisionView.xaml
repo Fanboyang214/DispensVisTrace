@@ -192,21 +192,21 @@
                             </Border>
                         </Grid>
 
-                        <!-- 位姿：行 / 列 / 偏转角 / 匹配分 -->
+                        <!-- 位姿偏移：ΔX / ΔY / Δθ / 匹配分（相对示教位，由运动模块叠加到胶路上） -->
                         <UniformGrid Grid.Row="1" Columns="4" VerticalAlignment="Bottom" Margin="0,10,0,0">
                             <StackPanel>
-                                <TextBlock Text="行 R" Style="{StaticResource MetricLabel}" />
-                                <TextBlock Text="{Binding Locate.Row, StringFormat={}{0:F2}, TargetNullValue=—}"
+                                <TextBlock Text="X 偏移 ΔX" Style="{StaticResource MetricLabel}" />
+                                <TextBlock Text="{Binding Locate.DeltaX, StringFormat={}{0:F3}, TargetNullValue=—}"
                                            Style="{StaticResource MetricValue}" />
                             </StackPanel>
                             <StackPanel Margin="8,0,0,0">
-                                <TextBlock Text="列 C" Style="{StaticResource MetricLabel}" />
-                                <TextBlock Text="{Binding Locate.Column, StringFormat={}{0:F2}, TargetNullValue=—}"
+                                <TextBlock Text="Y 偏移 ΔY" Style="{StaticResource MetricLabel}" />
+                                <TextBlock Text="{Binding Locate.DeltaY, StringFormat={}{0:F3}, TargetNullValue=—}"
                                            Style="{StaticResource MetricValue}" />
                             </StackPanel>
                             <StackPanel Margin="8,0,0,0">
-                                <TextBlock Text="偏转 θ" Style="{StaticResource MetricLabel}" />
-                                <TextBlock Text="{Binding Locate.AngleDeg, StringFormat={}{0:F2}°, TargetNullValue=—}"
+                                <TextBlock Text="旋转 Δθ" Style="{StaticResource MetricLabel}" />
+                                <TextBlock Text="{Binding Locate.DeltaThetaDeg, StringFormat={}{0:F3}°, TargetNullValue=—}"
                                            Style="{StaticResource MetricValue}" />
                             </StackPanel>
                             <StackPanel Margin="8,0,0,0">
